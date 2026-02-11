@@ -1,297 +1,196 @@
-# EduConnect - Modern Learning Management Platform
+# EduConnect - LinkedIn-like Educational Platform
 
-A comprehensive educational platform built with Next.js 16, featuring AI-powered analytics, real-time collaboration, and professional dashboards for students, teachers, and administrators.
+## Project Overview
+- **Name**: EduConnect
+- **Goal**: A comprehensive educational platform connecting students, teachers, and administrators with real-time features, AI-powered guidance, and complete academic management
+- **Tech Stack**: Next.js 16, React 19, shadcn/ui, PostgreSQL (Neon), Prisma ORM, Better Auth
 
-![EduConnect](https://img.shields.io/badge/Next.js-16-black?style=for-the-badge&logo=next.js)
-![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?style=for-the-badge&logo=typescript)
-![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?style=for-the-badge&logo=prisma)
-![TailwindCSS](https://img.shields.io/badge/Tailwind-CSS-38B2AC?style=for-the-badge&logo=tailwind-css)
+## Live URLs
+- **Development**: https://3000-idqj25o2bl532dovxabin-2e1b9533.sandbox.novita.ai
 
-## 🌟 Features
-
-### Authentication & Authorization
-- **Multi-role system**: Student, Teacher, Admin
-- **OAuth providers**: Google & GitHub login
-- **Secure authentication** using Better Auth
-- **Password reset** functionality
-- **Rate limiting** for API protection
-
-### Student Dashboard
-- **Home**: Overview with stats, charts, and upcoming deadlines
-- **Classes**: Join classes with unique codes, view enrolled courses
-- **Assignments**: Submit work, track deadlines
-- **Quiz/Exams**: Take assessments with auto-grading
-- **Attendance**: Track attendance records
-- **Performance Analytics**: Charts and progress tracking
-- **AI Chatbot**: Personalized learning suggestions
-- **Calendar & Events**: Schedule management
-- **Messages**: Real-time communication
-- **Tasks**: Personal task management
-
-### Teacher Dashboard
-- **Class Management**: Create classes with unique codes
-- **Student Management**: Approve join requests, manage enrollments
-- **Assignments**: Create, grade, provide feedback
-- **Examinations**: Build quizzes with multiple question types
-- **Attendance**: Mark and track student attendance
-- **Announcements**: Post updates to classes
-- **Analytics**: Class performance insights
-- **Library**: Share learning materials
-
-### Admin Dashboard
-- **User Management**: View/manage all students and teachers
-- **System Analytics**: Platform-wide statistics
-- **Class Overview**: Monitor all classes
-- **Activity Logs**: Track user actions
-- **System Health**: Server and database monitoring
-
-### Additional Features
-- **Skeleton Loading**: Professional loading states
-- **Responsive Design**: Mobile-first approach
-- **Animations**: Smooth transitions with Framer Motion
-- **Real-time Updates**: Live notifications
-- **Caching**: Performance optimization
-- **Rate Limiting**: API protection
-
-## 🏗️ Tech Stack
-
-| Layer | Technology |
-|-------|------------|
-| Frontend | Next.js 16, React 19, TypeScript |
-| Styling | TailwindCSS 4, Framer Motion |
-| UI Components | Radix UI, Lucide Icons |
-| Backend | Next.js API Routes, Server Actions |
-| Database | PostgreSQL (Neon), Prisma ORM |
-| Authentication | Better Auth (OAuth + Credentials) |
-| Charts | Recharts |
-| Forms | React Hook Form, Zod validation |
-| State | React hooks, Server components |
-
-## 📁 Project Structure
-
-```
-webapp/
-├── prisma/
-│   └── schema.prisma      # Database schema
-├── src/
-│   ├── app/
-│   │   ├── api/           # API routes
-│   │   │   ├── auth/      # Authentication endpoints
-│   │   │   ├── ai/        # AI chatbot
-│   │   │   ├── classes/   # Class management
-│   │   │   └── profile/   # User profiles
-│   │   ├── auth/          # Auth pages (login, register)
-│   │   ├── dashboard/
-│   │   │   ├── student/   # Student dashboard pages
-│   │   │   ├── teacher/   # Teacher dashboard pages
-│   │   │   └── admin/     # Admin dashboard pages
-│   │   ├── layout.tsx     # Root layout
-│   │   └── page.tsx       # Landing page
-│   ├── components/
-│   │   ├── dashboard/     # Dashboard-specific components
-│   │   │   ├── student/   # Student sidebar, header
-│   │   │   ├── teacher/   # Teacher sidebar, header
-│   │   │   └── admin/     # Admin sidebar, header
-│   │   └── ui/            # Reusable UI components
-│   │       ├── button.tsx
-│   │       ├── card.tsx
-│   │       ├── dialog.tsx
-│   │       ├── input.tsx
-│   │       ├── skeleton.tsx
-│   │       └── ...
-│   └── lib/
-│       ├── auth.ts        # Better Auth config
-│       ├── auth-client.ts # Client-side auth
-│       ├── cache.ts       # Caching utilities
-│       ├── prisma.ts      # Database client
-│       ├── rate-limit.ts  # Rate limiting
-│       └── utils.ts       # Helper functions
-├── .env                   # Environment variables
-├── .env.example           # Example env file
-└── package.json
-```
-
-## 🚀 Getting Started
-
-### Prerequisites
-- Node.js 18+
-- PostgreSQL database (or Neon account)
-- Google OAuth credentials
-- GitHub OAuth credentials
-
-### Installation
-
-1. **Clone the repository**
-```bash
-git clone <repository-url>
-cd webapp
-```
-
-2. **Install dependencies**
-```bash
-npm install
-```
-
-3. **Set up environment variables**
-```bash
-cp .env.example .env
-```
-
-Edit `.env` with your credentials:
-```env
-# Database - Neon PostgreSQL
-DATABASE_URL="postgresql://username:password@ep-xxx.region.neon.tech/database?sslmode=require"
-
-# Better Auth
-BETTER_AUTH_SECRET="your-super-secret-key"
-BETTER_AUTH_URL="http://localhost:3000"
-
-# OAuth - Google
-GOOGLE_CLIENT_ID="your-google-client-id"
-GOOGLE_CLIENT_SECRET="your-google-client-secret"
-
-# OAuth - GitHub
-GITHUB_CLIENT_ID="your-github-client-id"
-GITHUB_CLIENT_SECRET="your-github-client-secret"
-
-# OpenAI (optional - for AI Chatbot)
-OPENAI_API_KEY="your-openai-api-key"
-
-# App Config
-NEXT_PUBLIC_APP_URL="http://localhost:3000"
-NEXT_PUBLIC_APP_NAME="EduConnect"
-```
-
-4. **Set up database**
-```bash
-npm run db:generate
-npm run db:push
-```
-
-5. **Run development server**
-```bash
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000)
-
-## 📊 Database Schema
-
-### Core Models
-- **User**: Base user with role (STUDENT/TEACHER/ADMIN)
-- **Student**: Extended student profile
-- **Teacher**: Extended teacher profile
-- **Class**: Virtual classroom with unique codes
-- **ClassEnrollment**: Student-class relationship with approval status
-
-### Academic Models
-- **Assignment**: Tasks with deadlines and rubrics
-- **Submission**: Student assignment submissions
-- **Exam**: Quizzes and tests
-- **Question**: Multiple types (MCQ, True/False, Short/Long Answer)
-- **ExamAttempt**: Student exam attempts
-
-### Tracking Models
-- **Attendance**: Daily attendance records
-- **Performance**: Monthly performance metrics
-- **Notification**: User notifications
-- **Task**: Personal task lists
-
-### Communication
-- **ChatRoom**: Direct and group chats
-- **Message**: Chat messages
-- **Announcement**: Class announcements
-
-## 🔐 API Endpoints
+## Features
 
 ### Authentication
-- `POST /api/auth/[...all]` - Better Auth handlers
-- `POST /api/auth/forgot-password` - Password reset
+- Multi-role authentication (Student, Teacher, Admin)
+- Google & GitHub OAuth integration
+- Email/password authentication
+- Password reset functionality
+- Role-based access control
+
+### Landing Page
+- Modern hero section with animations
+- Features showcase
+- How it works section
+- FAQ accordion
+- Responsive footer
+
+### Student Dashboard
+- **Home**: Overview with stats, upcoming deadlines, recent activity
+- **Classes**: Join classes with codes, view enrolled classes
+- **Assignments**: View, submit, and track assignments
+- **Quiz/Exams**: Take quizzes with auto-grading (MCQ)
+- **Attendance**: Calendar view with attendance records
+- **Messages**: Real-time chat with teachers and classmates
+- **AI Assistant**: Personalized learning guidance
+- **Profile**: Manage personal information
+
+### Teacher Dashboard
+- **Home**: Class overview, pending requests, analytics
+- **Classes**: Create classes with unique join codes, manage enrollments
+- **Assignments**: Create, grade, and provide feedback
+- **Exams**: Build quizzes with question bank
+- **Attendance**: Mark and track attendance
+- **Messages**: Communicate with students
+- **Analytics**: View class performance metrics
+
+### Admin Dashboard
+- **Overview**: Platform-wide statistics and health
+- **Users**: Full user management (view, edit, suspend, delete)
+- **Classes**: Manage all classes and enrollments
+- **Analytics**: Comprehensive charts and reports
+- **Settings**: Platform configuration
+
+## Data Models
+
+### Users & Authentication
+- User (with role: STUDENT, TEACHER, ADMIN)
+- Student (enrollment, department, semester)
+- Teacher (employee ID, department, subject)
+- Sessions, Accounts, PasswordResetTokens
+
+### Academic
+- Class (with unique join codes)
+- ClassEnrollment (PENDING, APPROVED, REJECTED)
+- Assignment, Submission, Rubric
+- Exam, Question, ExamAttempt, QuestionAnswer
+
+### Engagement
+- Attendance, AttendanceSession
+- Event, Task, Notification
+- ChatRoom, Message
+- AIChat for learning assistance
+
+### Analytics
+- Performance tracking
+- AuditLog for admin actions
+
+## API Endpoints
+
+### Authentication
+- `POST /api/auth/signup` - Register new user
+- `POST /api/auth/login` - Login
+- `POST /api/auth/logout` - Logout
+- `GET /api/auth/session` - Get current session
+- `POST /api/auth/forgot-password` - Request password reset
 
 ### Classes
 - `GET /api/classes` - List classes
-- `POST /api/classes` - Create class
+- `POST /api/classes` - Create class (teacher)
+- `POST /api/classes/join` - Join class with code (student)
 - `GET /api/classes/[id]` - Get class details
-- `PUT /api/classes/[id]` - Update class
-- `DELETE /api/classes/[id]` - Delete class
-- `POST /api/classes/join` - Join class with code
+- `POST /api/classes/[id]/enroll` - Manage enrollment requests
 
-### Profiles
-- `GET/POST/PUT /api/profile/student` - Student profile
-- `GET/POST/PUT /api/profile/teacher` - Teacher profile
+### Assignments
+- `GET /api/assignments` - List assignments
+- `POST /api/assignments` - Create assignment (teacher)
+- `POST /api/assignments/[id]/submit` - Submit assignment (student)
 
-### AI
-- `POST /api/ai/chat` - AI chatbot interaction
+### Exams
+- `GET /api/exams` - List exams
+- `POST /api/exams` - Create exam with questions (teacher)
+- `POST /api/exams/[id]/attempt` - Start/submit exam (student)
 
-## 🎨 UI Components
+### Attendance
+- `GET /api/attendance` - Get attendance records
+- `POST /api/attendance` - Mark attendance (teacher)
 
-Built with Radix UI primitives and styled with TailwindCSS:
+### Admin
+- `GET /api/admin/users` - List all users
+- `GET /api/admin/users/[id]` - Get user details
+- `PUT /api/admin/users/[id]` - Update user
+- `DELETE /api/admin/users/[id]` - Delete user
+- `GET /api/admin/classes` - List all classes
+- `GET /api/admin/stats` - Platform statistics
 
-- **Button**: Multiple variants (default, outline, ghost, destructive)
-- **Card**: Container with hover effects
-- **Dialog**: Modal dialogs
-- **Input/Textarea**: Form inputs with validation
-- **Select**: Dropdown selects
-- **Tabs**: Tab navigation
-- **Accordion**: Collapsible content
-- **Avatar**: User avatars with fallbacks
-- **Badge**: Status indicators
-- **Progress**: Progress bars
-- **Skeleton**: Loading placeholders
-- **Toast**: Notifications
-- **Dropdown Menu**: Context menus
+### AI & Chat
+- `POST /api/ai/chat` - AI learning assistant
+- `GET /api/notifications` - User notifications
+- `GET /api/tasks` - User tasks
 
-## 📱 Responsive Design
+## Environment Variables Required
 
-- Mobile-first approach
-- Sidebar collapses on mobile
-- Touch-friendly interactions
-- Adaptive layouts
-
-## 🔧 Scripts
-
-```bash
-# Development
-npm run dev          # Start dev server
-
-# Build
-npm run build        # Production build
-npm run start        # Start production server
-
+```env
 # Database
-npm run db:generate  # Generate Prisma client
-npm run db:push      # Push schema to database
-npm run db:migrate   # Run migrations
-npm run db:studio    # Open Prisma Studio
+DATABASE_URL="postgresql://..."
 
-# Linting
-npm run lint         # Run ESLint
+# Auth
+BETTER_AUTH_SECRET="your-secret"
+BETTER_AUTH_URL="http://localhost:3000"
+
+# OAuth
+GOOGLE_CLIENT_ID="..."
+GOOGLE_CLIENT_SECRET="..."
+GITHUB_CLIENT_ID="..."
+GITHUB_CLIENT_SECRET="..."
+
+# Optional
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
+OPENAI_API_KEY="..." # For AI features
 ```
 
-## 🚀 Deployment
+## Getting Started
 
-### Vercel (Recommended)
-1. Connect your repository to Vercel
-2. Set environment variables
-3. Deploy
+1. Clone the repository
+2. Install dependencies: `npm install`
+3. Set up environment variables
+4. Push database schema: `npx prisma db push`
+5. Generate Prisma client: `npx prisma generate`
+6. Run development server: `npm run dev`
 
-### Other Platforms
-1. Build the application: `npm run build`
-2. Set environment variables
-3. Start: `npm run start`
+## Project Structure
 
-## 📝 License
+```
+src/
+├── app/
+│   ├── api/           # API routes
+│   ├── auth/          # Auth pages
+│   ├── dashboard/     # Dashboard pages
+│   │   ├── admin/     # Admin dashboard
+│   │   ├── student/   # Student dashboard
+│   │   └── teacher/   # Teacher dashboard
+│   └── page.tsx       # Landing page
+├── components/
+│   ├── ui/            # shadcn/ui components
+│   ├── dashboard/     # Dashboard components
+│   └── shared/        # Shared components
+├── lib/
+│   ├── auth.ts        # Auth configuration
+│   ├── prisma.ts      # Database client
+│   └── utils.ts       # Utilities
+└── types/             # TypeScript types
+```
 
-MIT License
+## Status
+- ✅ Project Setup (Next.js 16, React 19)
+- ✅ Database Schema (Prisma + PostgreSQL)
+- ✅ Authentication System
+- ✅ Landing Page
+- ✅ Student Dashboard (all pages)
+- ✅ Teacher Dashboard (all pages)
+- ✅ Admin Dashboard (full database access)
+- ✅ Classroom Management
+- ✅ Assignment System
+- ✅ Quiz/Exam System with auto-grading
+- ✅ Attendance & Calendar
+- ✅ AI Chatbot Component
+- ✅ Real-time Chat UI
+- ✅ API Routes for all features
 
-## 🤝 Contributing
+## Next Steps
+1. Connect to Neon PostgreSQL database
+2. Configure OAuth providers (Google, GitHub)
+3. Set up OpenAI API for AI features
+4. Deploy to Vercel
 
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Open a Pull Request
-
----
-
-Built with ❤️ using Next.js 16 and modern web technologies.
+## License
+MIT

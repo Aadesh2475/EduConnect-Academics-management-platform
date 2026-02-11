@@ -20,7 +20,7 @@ export async function createSession(userId: string): Promise<string> {
   return token;
 }
 
-export async function getSession(): Promise<SessionUser | null> {
+export async function getSession(): Promise<(SessionUser & { userId: string }) | null> {
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get("session_token")?.value;
@@ -40,6 +40,7 @@ export async function getSession(): Promise<SessionUser | null> {
 
     return {
       id: session.user.id,
+      userId: session.user.id, // Alias for backward compatibility
       email: session.user.email,
       name: session.user.name,
       image: session.user.image,

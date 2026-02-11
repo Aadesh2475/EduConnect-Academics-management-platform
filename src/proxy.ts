@@ -18,7 +18,7 @@ const roleRoutes = {
   admin: "/dashboard/admin",
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Allow public routes
