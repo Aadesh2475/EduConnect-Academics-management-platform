@@ -21,7 +21,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { signIn } from "@/lib/auth-client"
+import { signIn, getDashboardPath } from "@/lib/auth-client"
 import { toast } from "@/components/ui/use-toast"
 
 const loginSchema = z.object({
@@ -59,16 +59,20 @@ export default function LoginPage() {
           description: result.error.message || "Invalid credentials",
           variant: "destructive",
         })
-      } else {
+      } else if (result.data) {
         toast({
           title: "Welcome back!",
           description: "Login successful",
-          variant: "success",
         })
-        // Redirect based on role
-        router.push("/dashboard")
+        
+        // Get user role and redirect to appropriate dashboard
+        const userRole = (result.data.user as any)?.role || "STUDENT"
+        const dashboardPath = getDashboardPath(userRole)
+        router.push(dashboardPath)
+        router.refresh()
       }
     } catch (error) {
+      console.error("Login error:", error)
       toast({
         title: "Error",
         description: "Something went wrong. Please try again.",
@@ -192,14 +196,19 @@ export default function LoginPage() {
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="your@email.com"
-                    icon={<Mail className="w-4 h-4" />}
-                    {...register("email")}
-                    error={errors.email?.message}
-                  />
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="your@email.com"
+                      className="pl-10"
+                      {...register("email")}
+                    />
+                  </div>
+                  {errors.email && (
+                    <p className="text-sm text-red-500">{errors.email.message}</p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -213,13 +222,13 @@ export default function LoginPage() {
                     </Link>
                   </div>
                   <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <Input
                       id="password"
                       type={showPassword ? "text" : "password"}
                       placeholder="••••••••"
-                      icon={<Lock className="w-4 h-4" />}
+                      className="pl-10 pr-10"
                       {...register("password")}
-                      error={errors.password?.message}
                     />
                     <button
                       type="button"
@@ -233,10 +242,20 @@ export default function LoginPage() {
                       )}
                     </button>
                   </div>
+                  {errors.password && (
+                    <p className="text-sm text-red-500">{errors.password.message}</p>
+                  )}
                 </div>
 
-                <Button type="submit" className="w-full h-11" loading={isLoading}>
-                  Sign In
+                <Button type="submit" className="w-full h-11" disabled={isLoading}>
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Signing in...
+                    </>
+                  ) : (
+                    "Sign In"
+                  )}
                 </Button>
               </form>
 

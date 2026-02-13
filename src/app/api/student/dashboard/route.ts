@@ -10,8 +10,11 @@ export async function GET(req: NextRequest) {
     if (!session) return errorResponse("Unauthorized", 401)
     if (session.role !== "STUDENT") return errorResponse("Forbidden", 403)
 
-    const student = await prisma.student.findUnique({
-      where: { userId: session.userId },
+    const userId = session.userId || session.id
+
+    // Check if student profile exists
+    let student = await prisma.student.findUnique({
+      where: { userId },
       include: {
         user: {
           select: { name: true, email: true, image: true }
@@ -36,14 +39,49 @@ export async function GET(req: NextRequest) {
       }
     })
 
+    // If student profile doesn't exist, create one
     if (!student) {
-      return errorResponse("Student profile not found", 404)
+      const user = await prisma.user.findUnique({
+        where: { id: userId }
+      })
+
+      if (!user) {
+        return errorResponse("User not found", 404)
+      }
+
+      student = await prisma.student.create({
+        data: {
+          userId,
+        },
+        include: {
+          user: {
+            select: { name: true, email: true, image: true }
+          },
+          classEnrollments: {
+            where: { status: "APPROVED" },
+            include: {
+              class: {
+                include: {
+                  teacher: {
+                    include: {
+                      user: { select: { name: true, email: true, image: true } }
+                    }
+                  },
+                  _count: {
+                    select: { enrollments: true, assignments: true, exams: true, materials: true }
+                  }
+                }
+              }
+            }
+          }
+        }
+      })
     }
 
     const classIds = student.classEnrollments.map(e => e.class.id)
 
     // Get pending assignments count
-    const pendingAssignments = await prisma.assignment.count({
+    const pendingAssignments = classIds.length > 0 ? await prisma.assignment.count({
       where: {
         classId: { in: classIds },
         dueDate: { gte: new Date() },
@@ -51,10 +89,10 @@ export async function GET(req: NextRequest) {
           none: { studentId: student.id }
         }
       }
-    })
+    }) : 0
 
     // Get upcoming exams
-    const upcomingExams = await prisma.exam.count({
+    const upcomingExams = classIds.length > 0 ? await prisma.exam.count({
       where: {
         classId: { in: classIds },
         startTime: { gte: new Date() },
@@ -62,39 +100,52 @@ export async function GET(req: NextRequest) {
           none: { studentId: student.id }
         }
       }
-    })
+    }) : 0
 
     // Get attendance stats
-    const attendanceSessions = await prisma.attendanceSession.findMany({
-      where: { classId: { in: classIds } },
-      include: {
-        attendances: {
-          where: { studentId: student.id }
+    let attendanceRate = 0
+    if (classIds.length > 0) {
+      const attendanceSessions = await prisma.attendanceSession.findMany({
+        where: { classId: { in: classIds } },
+        include: {
+          attendances: {
+            where: { studentId: student.id }
+          }
         }
-      }
-    })
+      })
 
-    const totalSessions = attendanceSessions.length
-    const presentSessions = attendanceSessions.filter(
-      s => s.attendances[0]?.status === "PRESENT" || s.attendances[0]?.status === "LATE"
-    ).length
-    const attendanceRate = totalSessions > 0 ? Math.round((presentSessions / totalSessions) * 100) : 0
+      const totalSessions = attendanceSessions.length
+      const presentSessions = attendanceSessions.filter(
+        s => s.attendances[0]?.status === "PRESENT" || s.attendances[0]?.status === "LATE"
+      ).length
+      attendanceRate = totalSessions > 0 ? Math.round((presentSessions / totalSessions) * 100) : 100
+    }
 
     // Get recent notifications
     const notifications = await prisma.notification.findMany({
-      where: { userId: session.userId },
+      where: { userId },
       orderBy: { createdAt: "desc" },
       take: 5
     })
 
     // Get recent announcements
-    const announcements = await prisma.announcement.findMany({
+    const announcements = classIds.length > 0 ? await prisma.announcement.findMany({
       where: {
         OR: [
           { classId: { in: classIds } },
           { isGlobal: true }
         ]
       },
+      include: {
+        teacher: {
+          include: { user: { select: { name: true } } }
+        },
+        class: { select: { name: true, code: true } }
+      },
+      orderBy: { createdAt: "desc" },
+      take: 5
+    }) : await prisma.announcement.findMany({
+      where: { isGlobal: true },
       include: {
         teacher: {
           include: { user: { select: { name: true } } }

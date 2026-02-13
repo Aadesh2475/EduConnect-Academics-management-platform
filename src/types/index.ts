@@ -8,6 +8,7 @@ export type QuestionType = "MCQ" | "TRUE_FALSE" | "SHORT_ANSWER" | "LONG_ANSWER"
 
 export interface SessionUser {
   id: string;
+  userId?: string; // Alias for backward compatibility
   email: string;
   name: string;
   image?: string | null;

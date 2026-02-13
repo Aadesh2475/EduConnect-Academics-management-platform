@@ -3,7 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { motion, AnimatePresence } from "framer-motion"
+import { motion } from "framer-motion"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
@@ -28,7 +28,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { signUp, signIn } from "@/lib/auth-client"
+import { signUp, signIn, getDashboardPath } from "@/lib/auth-client"
 import { toast } from "@/components/ui/use-toast"
 
 // Student Schema
@@ -60,6 +60,7 @@ const teacherSchema = z.object({
 
 // Admin Schema
 const adminSchema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters"),
   email: z.string().email("Please enter a valid email"),
   password: z.string().min(8, "Password must be at least 8 characters"),
   confirmPassword: z.string(),
@@ -103,7 +104,7 @@ export default function RegisterPage() {
         password: data.password,
         name: data.name,
         role: "STUDENT",
-      })
+      } as any)
       
       if (result.error) {
         toast({
@@ -113,20 +114,25 @@ export default function RegisterPage() {
         })
       } else {
         // Create student profile via API
-        await fetch("/api/profile/student", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone: data.phone }),
-        })
+        try {
+          await fetch("/api/profile/student", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ phone: data.phone }),
+          })
+        } catch (e) {
+          console.log("Profile creation may need to be done later")
+        }
         
         toast({
           title: "Account Created!",
           description: "Welcome to EduConnect",
-          variant: "success",
         })
         router.push("/dashboard/student")
+        router.refresh()
       }
     } catch (error) {
+      console.error("Registration error:", error)
       toast({
         title: "Error",
         description: "Something went wrong. Please try again.",
@@ -145,7 +151,7 @@ export default function RegisterPage() {
         password: data.password,
         name: data.name,
         role: "TEACHER",
-      })
+      } as any)
       
       if (result.error) {
         toast({
@@ -155,25 +161,30 @@ export default function RegisterPage() {
         })
       } else {
         // Create teacher profile via API
-        await fetch("/api/profile/teacher", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            department: data.department,
-            subject: data.subject,
-            university: data.university,
-            phone: data.phone,
-          }),
-        })
+        try {
+          await fetch("/api/profile/teacher", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              department: data.department,
+              subject: data.subject,
+              university: data.university,
+              phone: data.phone,
+            }),
+          })
+        } catch (e) {
+          console.log("Profile creation may need to be done later")
+        }
         
         toast({
           title: "Account Created!",
           description: "Welcome to EduConnect",
-          variant: "success",
         })
         router.push("/dashboard/teacher")
+        router.refresh()
       }
     } catch (error) {
+      console.error("Registration error:", error)
       toast({
         title: "Error",
         description: "Something went wrong. Please try again.",
@@ -190,9 +201,9 @@ export default function RegisterPage() {
       const result = await signUp.email({
         email: data.email,
         password: data.password,
-        name: "Admin",
+        name: data.name,
         role: "ADMIN",
-      })
+      } as any)
       
       if (result.error) {
         toast({
@@ -204,11 +215,12 @@ export default function RegisterPage() {
         toast({
           title: "Admin Account Created!",
           description: "Welcome to EduConnect Admin Panel",
-          variant: "success",
         })
         router.push("/dashboard/admin")
+        router.refresh()
       }
     } catch (error) {
+      console.error("Registration error:", error)
       toast({
         title: "Error",
         description: "Something went wrong. Please try again.",
@@ -224,7 +236,7 @@ export default function RegisterPage() {
     try {
       await signIn.social({
         provider,
-        callbackURL: `/auth/complete-profile?role=${activeRole}`,
+        callbackURL: `/auth/complete-profile?role=${activeRole.toUpperCase()}`,
       })
     } catch (error) {
       toast({
@@ -234,27 +246,6 @@ export default function RegisterPage() {
       })
       setOauthLoading(null)
     }
-  }
-
-  const roleConfig = {
-    student: {
-      icon: <GraduationCapIcon className="w-5 h-5" />,
-      title: "Student",
-      description: "Join classes and track your progress",
-      color: "from-blue-500 to-blue-600",
-    },
-    teacher: {
-      icon: <BookOpen className="w-5 h-5" />,
-      title: "Teacher",
-      description: "Create classes and manage students",
-      color: "from-purple-500 to-purple-600",
-    },
-    admin: {
-      icon: <ShieldCheck className="w-5 h-5" />,
-      title: "Admin",
-      description: "Full platform management",
-      color: "from-gray-700 to-gray-800",
-    },
   }
 
   return (
@@ -363,48 +354,61 @@ export default function RegisterPage() {
                   <form onSubmit={studentForm.handleSubmit(onStudentSubmit)} className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="student-name">Full Name</Label>
-                      <Input
-                        id="student-name"
-                        placeholder="John Doe"
-                        icon={<User className="w-4 h-4" />}
-                        {...studentForm.register("name")}
-                        error={studentForm.formState.errors.name?.message}
-                      />
+                      <div className="relative">
+                        <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Input
+                          id="student-name"
+                          placeholder="John Doe"
+                          className="pl-10"
+                          {...studentForm.register("name")}
+                        />
+                      </div>
+                      {studentForm.formState.errors.name && (
+                        <p className="text-sm text-red-500">{studentForm.formState.errors.name.message}</p>
+                      )}
                     </div>
 
                     <div className="space-y-2">
                       <Label htmlFor="student-email">Email</Label>
-                      <Input
-                        id="student-email"
-                        type="email"
-                        placeholder="your@email.com"
-                        icon={<Mail className="w-4 h-4" />}
-                        {...studentForm.register("email")}
-                        error={studentForm.formState.errors.email?.message}
-                      />
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Input
+                          id="student-email"
+                          type="email"
+                          placeholder="your@email.com"
+                          className="pl-10"
+                          {...studentForm.register("email")}
+                        />
+                      </div>
+                      {studentForm.formState.errors.email && (
+                        <p className="text-sm text-red-500">{studentForm.formState.errors.email.message}</p>
+                      )}
                     </div>
 
                     <div className="space-y-2">
                       <Label htmlFor="student-phone">Phone (Optional)</Label>
-                      <Input
-                        id="student-phone"
-                        type="tel"
-                        placeholder="+1 (555) 000-0000"
-                        icon={<Phone className="w-4 h-4" />}
-                        {...studentForm.register("phone")}
-                      />
+                      <div className="relative">
+                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Input
+                          id="student-phone"
+                          type="tel"
+                          placeholder="+1 (555) 000-0000"
+                          className="pl-10"
+                          {...studentForm.register("phone")}
+                        />
+                      </div>
                     </div>
 
                     <div className="space-y-2">
                       <Label htmlFor="student-password">Password</Label>
                       <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <Input
                           id="student-password"
                           type={showPassword ? "text" : "password"}
                           placeholder="••••••••"
-                          icon={<Lock className="w-4 h-4" />}
+                          className="pl-10 pr-10"
                           {...studentForm.register("password")}
-                          error={studentForm.formState.errors.password?.message}
                         />
                         <button
                           type="button"
@@ -414,18 +418,21 @@ export default function RegisterPage() {
                           {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
                       </div>
+                      {studentForm.formState.errors.password && (
+                        <p className="text-sm text-red-500">{studentForm.formState.errors.password.message}</p>
+                      )}
                     </div>
 
                     <div className="space-y-2">
                       <Label htmlFor="student-confirm-password">Confirm Password</Label>
                       <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <Input
                           id="student-confirm-password"
                           type={showConfirmPassword ? "text" : "password"}
                           placeholder="••••••••"
-                          icon={<Lock className="w-4 h-4" />}
+                          className="pl-10 pr-10"
                           {...studentForm.register("confirmPassword")}
-                          error={studentForm.formState.errors.confirmPassword?.message}
                         />
                         <button
                           type="button"
@@ -435,10 +442,20 @@ export default function RegisterPage() {
                           {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
                       </div>
+                      {studentForm.formState.errors.confirmPassword && (
+                        <p className="text-sm text-red-500">{studentForm.formState.errors.confirmPassword.message}</p>
+                      )}
                     </div>
 
-                    <Button type="submit" className="w-full h-11" loading={isLoading}>
-                      Create Student Account
+                    <Button type="submit" className="w-full h-11" disabled={isLoading}>
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Creating Account...
+                        </>
+                      ) : (
+                        "Create Student Account"
+                      )}
                     </Button>
                   </form>
                 </TabsContent>
@@ -448,13 +465,18 @@ export default function RegisterPage() {
                   <form onSubmit={teacherForm.handleSubmit(onTeacherSubmit)} className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="teacher-name">Full Name</Label>
-                      <Input
-                        id="teacher-name"
-                        placeholder="Dr. Jane Smith"
-                        icon={<User className="w-4 h-4" />}
-                        {...teacherForm.register("name")}
-                        error={teacherForm.formState.errors.name?.message}
-                      />
+                      <div className="relative">
+                        <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Input
+                          id="teacher-name"
+                          placeholder="Dr. Jane Smith"
+                          className="pl-10"
+                          {...teacherForm.register("name")}
+                        />
+                      </div>
+                      {teacherForm.formState.errors.name && (
+                        <p className="text-sm text-red-500">{teacherForm.formState.errors.name.message}</p>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
@@ -464,8 +486,10 @@ export default function RegisterPage() {
                           id="teacher-department"
                           placeholder="Computer Science"
                           {...teacherForm.register("department")}
-                          error={teacherForm.formState.errors.department?.message}
                         />
+                        {teacherForm.formState.errors.department && (
+                          <p className="text-sm text-red-500">{teacherForm.formState.errors.department.message}</p>
+                        )}
                       </div>
 
                       <div className="space-y-2">
@@ -474,57 +498,72 @@ export default function RegisterPage() {
                           id="teacher-subject"
                           placeholder="Data Structures"
                           {...teacherForm.register("subject")}
-                          error={teacherForm.formState.errors.subject?.message}
                         />
+                        {teacherForm.formState.errors.subject && (
+                          <p className="text-sm text-red-500">{teacherForm.formState.errors.subject.message}</p>
+                        )}
                       </div>
                     </div>
 
                     <div className="space-y-2">
                       <Label htmlFor="teacher-university">University/Institution</Label>
-                      <Input
-                        id="teacher-university"
-                        placeholder="Stanford University"
-                        icon={<Building className="w-4 h-4" />}
-                        {...teacherForm.register("university")}
-                        error={teacherForm.formState.errors.university?.message}
-                      />
+                      <div className="relative">
+                        <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Input
+                          id="teacher-university"
+                          placeholder="Stanford University"
+                          className="pl-10"
+                          {...teacherForm.register("university")}
+                        />
+                      </div>
+                      {teacherForm.formState.errors.university && (
+                        <p className="text-sm text-red-500">{teacherForm.formState.errors.university.message}</p>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-2">
                         <Label htmlFor="teacher-email">Email</Label>
-                        <Input
-                          id="teacher-email"
-                          type="email"
-                          placeholder="your@email.com"
-                          icon={<Mail className="w-4 h-4" />}
-                          {...teacherForm.register("email")}
-                          error={teacherForm.formState.errors.email?.message}
-                        />
+                        <div className="relative">
+                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <Input
+                            id="teacher-email"
+                            type="email"
+                            placeholder="your@email.com"
+                            className="pl-10"
+                            {...teacherForm.register("email")}
+                          />
+                        </div>
+                        {teacherForm.formState.errors.email && (
+                          <p className="text-sm text-red-500">{teacherForm.formState.errors.email.message}</p>
+                        )}
                       </div>
 
                       <div className="space-y-2">
                         <Label htmlFor="teacher-phone">Phone</Label>
-                        <Input
-                          id="teacher-phone"
-                          type="tel"
-                          placeholder="+1 (555) 000-0000"
-                          icon={<Phone className="w-4 h-4" />}
-                          {...teacherForm.register("phone")}
-                        />
+                        <div className="relative">
+                          <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <Input
+                            id="teacher-phone"
+                            type="tel"
+                            placeholder="+1 (555) 000-0000"
+                            className="pl-10"
+                            {...teacherForm.register("phone")}
+                          />
+                        </div>
                       </div>
                     </div>
 
                     <div className="space-y-2">
                       <Label htmlFor="teacher-password">Password</Label>
                       <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <Input
                           id="teacher-password"
                           type={showPassword ? "text" : "password"}
                           placeholder="••••••••"
-                          icon={<Lock className="w-4 h-4" />}
+                          className="pl-10 pr-10"
                           {...teacherForm.register("password")}
-                          error={teacherForm.formState.errors.password?.message}
                         />
                         <button
                           type="button"
@@ -534,18 +573,21 @@ export default function RegisterPage() {
                           {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
                       </div>
+                      {teacherForm.formState.errors.password && (
+                        <p className="text-sm text-red-500">{teacherForm.formState.errors.password.message}</p>
+                      )}
                     </div>
 
                     <div className="space-y-2">
                       <Label htmlFor="teacher-confirm-password">Confirm Password</Label>
                       <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <Input
                           id="teacher-confirm-password"
                           type={showConfirmPassword ? "text" : "password"}
                           placeholder="••••••••"
-                          icon={<Lock className="w-4 h-4" />}
+                          className="pl-10 pr-10"
                           {...teacherForm.register("confirmPassword")}
-                          error={teacherForm.formState.errors.confirmPassword?.message}
                         />
                         <button
                           type="button"
@@ -555,10 +597,20 @@ export default function RegisterPage() {
                           {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
                       </div>
+                      {teacherForm.formState.errors.confirmPassword && (
+                        <p className="text-sm text-red-500">{teacherForm.formState.errors.confirmPassword.message}</p>
+                      )}
                     </div>
 
-                    <Button type="submit" className="w-full h-11" loading={isLoading}>
-                      Create Teacher Account
+                    <Button type="submit" className="w-full h-11" disabled={isLoading}>
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Creating Account...
+                        </>
+                      ) : (
+                        "Create Teacher Account"
+                      )}
                     </Button>
                   </form>
                 </TabsContent>
@@ -574,27 +626,48 @@ export default function RegisterPage() {
 
                   <form onSubmit={adminForm.handleSubmit(onAdminSubmit)} className="space-y-4">
                     <div className="space-y-2">
+                      <Label htmlFor="admin-name">Full Name</Label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Input
+                          id="admin-name"
+                          placeholder="Admin Name"
+                          className="pl-10"
+                          {...adminForm.register("name")}
+                        />
+                      </div>
+                      {adminForm.formState.errors.name && (
+                        <p className="text-sm text-red-500">{adminForm.formState.errors.name.message}</p>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
                       <Label htmlFor="admin-email">Email</Label>
-                      <Input
-                        id="admin-email"
-                        type="email"
-                        placeholder="admin@educonnect.com"
-                        icon={<Mail className="w-4 h-4" />}
-                        {...adminForm.register("email")}
-                        error={adminForm.formState.errors.email?.message}
-                      />
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Input
+                          id="admin-email"
+                          type="email"
+                          placeholder="admin@educonnect.com"
+                          className="pl-10"
+                          {...adminForm.register("email")}
+                        />
+                      </div>
+                      {adminForm.formState.errors.email && (
+                        <p className="text-sm text-red-500">{adminForm.formState.errors.email.message}</p>
+                      )}
                     </div>
 
                     <div className="space-y-2">
                       <Label htmlFor="admin-password">Password</Label>
                       <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <Input
                           id="admin-password"
                           type={showPassword ? "text" : "password"}
                           placeholder="••••••••"
-                          icon={<Lock className="w-4 h-4" />}
+                          className="pl-10 pr-10"
                           {...adminForm.register("password")}
-                          error={adminForm.formState.errors.password?.message}
                         />
                         <button
                           type="button"
@@ -604,18 +677,21 @@ export default function RegisterPage() {
                           {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
                       </div>
+                      {adminForm.formState.errors.password && (
+                        <p className="text-sm text-red-500">{adminForm.formState.errors.password.message}</p>
+                      )}
                     </div>
 
                     <div className="space-y-2">
                       <Label htmlFor="admin-confirm-password">Confirm Password</Label>
                       <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <Input
                           id="admin-confirm-password"
                           type={showConfirmPassword ? "text" : "password"}
                           placeholder="••••••••"
-                          icon={<Lock className="w-4 h-4" />}
+                          className="pl-10 pr-10"
                           {...adminForm.register("confirmPassword")}
-                          error={adminForm.formState.errors.confirmPassword?.message}
                         />
                         <button
                           type="button"
@@ -625,10 +701,20 @@ export default function RegisterPage() {
                           {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
                       </div>
+                      {adminForm.formState.errors.confirmPassword && (
+                        <p className="text-sm text-red-500">{adminForm.formState.errors.confirmPassword.message}</p>
+                      )}
                     </div>
 
-                    <Button type="submit" className="w-full h-11" loading={isLoading}>
-                      Create Admin Account
+                    <Button type="submit" className="w-full h-11" disabled={isLoading}>
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Creating Account...
+                        </>
+                      ) : (
+                        "Create Admin Account"
+                      )}
                     </Button>
                   </form>
                 </TabsContent>

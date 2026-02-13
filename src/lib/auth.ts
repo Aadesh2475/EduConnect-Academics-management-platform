@@ -23,12 +23,12 @@ export const auth = betterAuth({
   },
   socialProviders: {
     google: {
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      clientId: process.env.GOOGLE_CLIENT_ID || "",
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
     },
     github: {
-      clientId: process.env.GITHUB_CLIENT_ID!,
-      clientSecret: process.env.GITHUB_CLIENT_SECRET!,
+      clientId: process.env.GITHUB_CLIENT_ID || "",
+      clientSecret: process.env.GITHUB_CLIENT_SECRET || "",
     },
   },
   session: {
@@ -53,6 +53,25 @@ export const auth = betterAuth({
     process.env.BETTER_AUTH_URL || "http://localhost:3000",
     process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
   ],
+  callbacks: {
+    session: async ({ session, user }) => {
+      // Get role from database if not in session
+      if (session && user) {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: user.id },
+          select: { role: true }
+        });
+        return {
+          ...session,
+          user: {
+            ...session.user,
+            role: dbUser?.role || "STUDENT"
+          }
+        };
+      }
+      return session;
+    }
+  }
 });
 
 export type Session = typeof auth.$Infer.Session;

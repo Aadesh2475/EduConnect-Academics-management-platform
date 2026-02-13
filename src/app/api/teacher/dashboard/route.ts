@@ -10,8 +10,11 @@ export async function GET(req: NextRequest) {
     if (!session) return errorResponse("Unauthorized", 401)
     if (session.role !== "TEACHER") return errorResponse("Forbidden", 403)
 
-    const teacher = await prisma.teacher.findUnique({
-      where: { userId: session.userId },
+    const userId = session.userId || session.id
+
+    // Check if teacher profile exists
+    let teacher = await prisma.teacher.findUnique({
+      where: { userId },
       include: {
         user: { select: { name: true, email: true, image: true } },
         classes: {
@@ -28,32 +31,64 @@ export async function GET(req: NextRequest) {
       }
     })
 
-    if (!teacher) return errorResponse("Teacher profile not found", 404)
+    // If teacher profile doesn't exist, create one
+    if (!teacher) {
+      const user = await prisma.user.findUnique({
+        where: { id: userId }
+      })
+
+      if (!user) {
+        return errorResponse("User not found", 404)
+      }
+
+      teacher = await prisma.teacher.create({
+        data: {
+          userId,
+          department: "Not Set",
+          subject: "Not Set",
+          university: "Not Set",
+        },
+        include: {
+          user: { select: { name: true, email: true, image: true } },
+          classes: {
+            include: {
+              _count: {
+                select: { enrollments: true, assignments: true, exams: true, materials: true }
+              },
+              enrollments: {
+                where: { status: "PENDING" },
+                select: { id: true }
+              }
+            }
+          }
+        }
+      })
+    }
 
     const classIds = teacher.classes.map(c => c.id)
 
     // Get total students across all classes
-    const totalStudents = await prisma.classEnrollment.count({
+    const totalStudents = classIds.length > 0 ? await prisma.classEnrollment.count({
       where: {
         classId: { in: classIds },
         status: "APPROVED"
       }
-    })
+    }) : 0
 
     // Get pending join requests
     const pendingRequests = teacher.classes.reduce((acc, c) => acc + c.enrollments.length, 0)
 
     // Get assignments to grade
-    const assignmentsToGrade = await prisma.submission.count({
+    const assignmentsToGrade = classIds.length > 0 ? await prisma.submission.count({
       where: {
         assignment: { classId: { in: classIds } },
         status: "SUBMITTED",
         marks: null
       }
-    })
+    }) : 0
 
     // Get recent submissions
-    const recentSubmissions = await prisma.submission.findMany({
+    const recentSubmissions = classIds.length > 0 ? await prisma.submission.findMany({
       where: {
         assignment: { classId: { in: classIds } }
       },
@@ -65,10 +100,10 @@ export async function GET(req: NextRequest) {
       },
       orderBy: { submittedAt: "desc" },
       take: 10
-    })
+    }) : []
 
     // Get upcoming exams
-    const upcomingExams = await prisma.exam.findMany({
+    const upcomingExams = classIds.length > 0 ? await prisma.exam.findMany({
       where: {
         classId: { in: classIds },
         startTime: { gte: new Date() }
@@ -78,11 +113,11 @@ export async function GET(req: NextRequest) {
       },
       orderBy: { startTime: "asc" },
       take: 5
-    })
+    }) : []
 
     // Get recent notifications
     const notifications = await prisma.notification.findMany({
-      where: { userId: session.userId },
+      where: { userId },
       orderBy: { createdAt: "desc" },
       take: 5
     })

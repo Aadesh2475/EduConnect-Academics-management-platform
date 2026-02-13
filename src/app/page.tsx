@@ -180,10 +180,10 @@ export default function LandingPage() {
             </nav>
 
             <div className="hidden md:flex items-center gap-3">
-              <Link href="/login">
+              <Link href="/auth/login">
                 <Button variant="ghost" size="sm" className="text-gray-700">Log in</Button>
               </Link>
-              <Link href="/signup">
+              <Link href="/auth/register">
                 <Button size="sm" className="bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 shadow-lg shadow-indigo-200/50">
                   Get Started <ArrowRight className="h-4 w-4 ml-1" />
                 </Button>
@@ -210,8 +210,8 @@ export default function LandingPage() {
                 <a href="#how-it-works" className="block py-2 text-sm font-medium text-gray-700" onClick={() => setMobileMenuOpen(false)}>How it Works</a>
                 <a href="#faq" className="block py-2 text-sm font-medium text-gray-700" onClick={() => setMobileMenuOpen(false)}>FAQ</a>
                 <div className="flex gap-2 pt-2">
-                  <Link href="/login" className="flex-1"><Button variant="outline" className="w-full">Log in</Button></Link>
-                  <Link href="/signup" className="flex-1"><Button className="w-full">Get Started</Button></Link>
+                  <Link href="/auth/login" className="flex-1"><Button variant="outline" className="w-full">Log in</Button></Link>
+                  <Link href="/auth/register" className="flex-1"><Button className="w-full">Get Started</Button></Link>
                 </div>
               </div>
             </motion.div>
@@ -251,7 +251,7 @@ export default function LandingPage() {
             </motion.p>
 
             <motion.div variants={fadeInUp} className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link href="/signup">
+              <Link href="/auth/register">
                 <Button size="lg" className="bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 shadow-xl shadow-indigo-200/50 text-base px-8 h-12">
                   Start for Free <ArrowRight className="h-5 w-5 ml-2" />
                 </Button>
@@ -717,12 +717,12 @@ export default function LandingPage() {
                 Join thousands of students and educators already using EduConnect
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                <Link href="/signup">
+                <Link href="/auth/register">
                   <Button size="lg" className="bg-white text-indigo-700 hover:bg-gray-100 shadow-xl text-base px-8 h-12">
                     Get Started Free <ArrowRight className="h-5 w-5 ml-2" />
                   </Button>
                 </Link>
-                <Link href="/login">
+                <Link href="/auth/login">
                   <Button variant="outline" size="lg" className="border-white/30 text-white hover:bg-white/10 text-base px-8 h-12">
                     Log In
                   </Button>
