@@ -1,37 +1,20 @@
 import { redirect } from "next/navigation"
-import { auth } from "@/lib/auth"
-import { headers } from "next/headers"
-import { prisma } from "@/lib/prisma"
+import { cookies } from "next/headers"
 import { Sidebar } from "@/components/dashboard/student/sidebar"
 import { Header } from "@/components/dashboard/student/header"
 
-async function getSessionWithRole() {
+async function getUser() {
+  const cookieStore = await cookies()
+  const userInfoCookie = cookieStore.get("user_info")?.value
+  const sessionToken = cookieStore.get("session_token")?.value
+
+  if (!sessionToken || !userInfoCookie) {
+    return null
+  }
+
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    })
-
-    if (!session?.user) {
-      return null
-    }
-
-    // Get role from database
-    const dbUser = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: { role: true, name: true, email: true, image: true }
-    })
-
-    return {
-      user: {
-        id: session.user.id,
-        name: dbUser?.name || session.user.name || "",
-        email: dbUser?.email || session.user.email || "",
-        image: dbUser?.image || session.user.image,
-        role: dbUser?.role || "STUDENT"
-      }
-    }
-  } catch (error) {
-    console.error("Session error:", error)
+    return JSON.parse(userInfoCookie)
+  } catch {
     return null
   }
 }
@@ -41,22 +24,21 @@ export default async function StudentDashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  const sessionData = await getSessionWithRole()
+  const user = await getUser()
 
-  if (!sessionData?.user) {
+  if (!user) {
     redirect("/auth/login")
   }
 
-  // Check if user is a student
-  if (sessionData.user.role !== "STUDENT") {
+  if (user.role !== "STUDENT") {
     redirect("/dashboard")
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Sidebar user={sessionData.user} />
+      <Sidebar user={user} />
       <div className="lg:pl-72">
-        <Header user={sessionData.user} />
+        <Header user={user} />
         <main className="p-6">
           {children}
         </main>

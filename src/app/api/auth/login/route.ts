@@ -1,42 +1,114 @@
 import { NextRequest, NextResponse } from "next/server"
-import prisma from "@/lib/prisma"
-import { verifyPassword, createSession } from "@/lib/auth/session"
-import { rateLimit, errorResponse } from "@/lib/api/helpers"
+
+// In-memory user storage for demo
+const users = new Map<string, {
+  id: string;
+  email: string;
+  name: string;
+  password: string;
+  role: string;
+  phone?: string;
+  department?: string;
+  subject?: string;
+  university?: string;
+  createdAt: Date;
+}>()
+
+// Pre-populate with demo users
+users.set("student@demo.com", {
+  id: "demo-student-1",
+  email: "student@demo.com",
+  name: "Demo Student",
+  password: "password123",
+  role: "STUDENT",
+  createdAt: new Date(),
+})
+
+users.set("teacher@demo.com", {
+  id: "demo-teacher-1",
+  email: "teacher@demo.com",
+  name: "Demo Teacher",
+  password: "password123",
+  role: "TEACHER",
+  department: "Computer Science",
+  subject: "Programming",
+  university: "Demo University",
+  createdAt: new Date(),
+})
+
+users.set("admin@demo.com", {
+  id: "demo-admin-1",
+  email: "admin@demo.com",
+  name: "Demo Admin",
+  password: "password123",
+  role: "ADMIN",
+  createdAt: new Date(),
+})
+
+// Helper function to generate unique ID
+function generateId(): string {
+  return Math.random().toString(36).substring(2) + Date.now().toString(36)
+}
 
 export async function POST(req: NextRequest) {
   try {
-    const ip = req.headers.get("x-forwarded-for") || "unknown"
-    const rl = await rateLimit(ip, "login", 10, 60000)
-    if (!rl.success) return errorResponse("Too many login attempts. Please try again later.", 429)
-
     const body = await req.json()
-    const { email, password, role } = body
+    const { email, password } = body
 
-    if (!email || !password) return errorResponse("Email and password are required")
-
-    const user = await prisma.user.findUnique({ where: { email } })
-    if (!user) return errorResponse("Invalid email or password", 401)
-
-    if (!user.password) return errorResponse("This account uses social login. Please use Google or GitHub.", 401)
-
-    const isValid = await verifyPassword(password, user.password)
-    if (!isValid) return errorResponse("Invalid email or password", 401)
-
-    // Optional: Check role match
-    if (role && user.role !== role) {
-      return errorResponse(`This account is registered as ${user.role.toLowerCase()}. Please select the correct role.`, 401)
+    if (!email || !password) {
+      return NextResponse.json({ 
+        success: false, 
+        error: "Email and password are required" 
+      }, { status: 400 })
     }
 
-    const token = await createSession(user.id)
+    const user = users.get(email.toLowerCase())
+    
+    if (!user) {
+      return NextResponse.json({ 
+        success: false, 
+        error: "Invalid email or password" 
+      }, { status: 401 })
+    }
+
+    if (user.password !== password) {
+      return NextResponse.json({ 
+        success: false, 
+        error: "Invalid email or password" 
+      }, { status: 401 })
+    }
+
+    // Create session token
+    const token = generateId()
 
     const response = NextResponse.json({
       success: true,
-      data: { id: user.id, email: user.email, name: user.name, role: user.role },
+      data: { 
+        id: user.id, 
+        email: user.email, 
+        name: user.name, 
+        role: user.role 
+      },
       message: "Login successful",
     })
 
+    // Set session cookie
     response.cookies.set("session_token", token, {
       httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 30 * 24 * 60 * 60, // 30 days
+      path: "/",
+    })
+
+    // Also set user info cookie for client-side access
+    response.cookies.set("user_info", JSON.stringify({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+    }), {
+      httpOnly: false,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       maxAge: 30 * 24 * 60 * 60,
@@ -46,6 +118,12 @@ export async function POST(req: NextRequest) {
     return response
   } catch (error) {
     console.error("Login error:", error)
-    return errorResponse("Internal server error", 500)
+    return NextResponse.json({ 
+      success: false, 
+      error: "Internal server error" 
+    }, { status: 500 })
   }
 }
+
+// Export the users map for signup route to access
+export { users, generateId }

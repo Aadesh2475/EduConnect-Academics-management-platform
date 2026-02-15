@@ -13,22 +13,19 @@ import {
   Lock,
   Eye,
   EyeOff,
-  Github,
   ArrowLeft,
   Loader2,
   User,
   Phone,
   Building,
   BookOpen,
-  GraduationCapIcon,
-  ShieldCheck
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { signUp, signIn, getDashboardPath } from "@/lib/auth-client"
+import { signUp, getDashboardPath } from "@/lib/auth-client"
 import { toast } from "@/components/ui/use-toast"
 
 // Student Schema
@@ -78,20 +75,16 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [oauthLoading, setOauthLoading] = useState<string | null>(null)
   const [activeRole, setActiveRole] = useState<"student" | "teacher" | "admin">("student")
 
-  // Student Form
   const studentForm = useForm<StudentFormData>({
     resolver: zodResolver(studentSchema),
   })
 
-  // Teacher Form
   const teacherForm = useForm<TeacherFormData>({
     resolver: zodResolver(teacherSchema),
   })
 
-  // Admin Form
   const adminForm = useForm<AdminFormData>({
     resolver: zodResolver(adminSchema),
   })
@@ -104,7 +97,8 @@ export default function RegisterPage() {
         password: data.password,
         name: data.name,
         role: "STUDENT",
-      } as any)
+        phone: data.phone,
+      })
       
       if (result.error) {
         toast({
@@ -113,17 +107,6 @@ export default function RegisterPage() {
           variant: "destructive",
         })
       } else {
-        // Create student profile via API
-        try {
-          await fetch("/api/profile/student", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ phone: data.phone }),
-          })
-        } catch (e) {
-          console.log("Profile creation may need to be done later")
-        }
-        
         toast({
           title: "Account Created!",
           description: "Welcome to EduConnect",
@@ -151,7 +134,11 @@ export default function RegisterPage() {
         password: data.password,
         name: data.name,
         role: "TEACHER",
-      } as any)
+        phone: data.phone,
+        department: data.department,
+        subject: data.subject,
+        university: data.university,
+      })
       
       if (result.error) {
         toast({
@@ -160,22 +147,6 @@ export default function RegisterPage() {
           variant: "destructive",
         })
       } else {
-        // Create teacher profile via API
-        try {
-          await fetch("/api/profile/teacher", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              department: data.department,
-              subject: data.subject,
-              university: data.university,
-              phone: data.phone,
-            }),
-          })
-        } catch (e) {
-          console.log("Profile creation may need to be done later")
-        }
-        
         toast({
           title: "Account Created!",
           description: "Welcome to EduConnect",
@@ -203,7 +174,7 @@ export default function RegisterPage() {
         password: data.password,
         name: data.name,
         role: "ADMIN",
-      } as any)
+      })
       
       if (result.error) {
         toast({
@@ -213,8 +184,8 @@ export default function RegisterPage() {
         })
       } else {
         toast({
-          title: "Admin Account Created!",
-          description: "Welcome to EduConnect Admin Panel",
+          title: "Account Created!",
+          description: "Welcome to EduConnect",
         })
         router.push("/dashboard/admin")
         router.refresh()
@@ -231,27 +202,9 @@ export default function RegisterPage() {
     }
   }
 
-  const handleOAuthRegister = async (provider: "google" | "github") => {
-    setOauthLoading(provider)
-    try {
-      await signIn.social({
-        provider,
-        callbackURL: `/auth/complete-profile?role=${activeRole.toUpperCase()}`,
-      })
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: `Failed to sign up with ${provider}`,
-        variant: "destructive",
-      })
-      setOauthLoading(null)
-    }
-  }
-
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 py-12">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-50 to-indigo-50">
       <div className="w-full max-w-lg">
-        {/* Back to Home */}
         <Link 
           href="/" 
           className="inline-flex items-center text-gray-600 hover:text-blue-600 mb-6 transition-colors"
@@ -267,87 +220,22 @@ export default function RegisterPage() {
         >
           <Card className="shadow-xl">
             <CardHeader className="text-center pb-2">
-              {/* Logo */}
               <div className="flex justify-center mb-4">
                 <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg">
                   <GraduationCap className="w-8 h-8 text-white" />
                 </div>
               </div>
               <CardTitle className="text-2xl font-bold">Create Account</CardTitle>
-              <CardDescription>Join EduConnect and start learning</CardDescription>
+              <CardDescription>Join EduConnect to get started</CardDescription>
             </CardHeader>
             
             <CardContent className="pt-4">
-              {/* Role Selection Tabs */}
-              <Tabs 
-                value={activeRole} 
-                onValueChange={(v) => setActiveRole(v as typeof activeRole)}
-                className="w-full"
-              >
-                <TabsList className="grid grid-cols-3 mb-6">
-                  <TabsTrigger value="student" className="text-xs sm:text-sm">
-                    <GraduationCapIcon className="w-4 h-4 mr-1 hidden sm:inline" />
-                    Student
-                  </TabsTrigger>
-                  <TabsTrigger value="teacher" className="text-xs sm:text-sm">
-                    <BookOpen className="w-4 h-4 mr-1 hidden sm:inline" />
-                    Teacher
-                  </TabsTrigger>
-                  <TabsTrigger value="admin" className="text-xs sm:text-sm">
-                    <ShieldCheck className="w-4 h-4 mr-1 hidden sm:inline" />
-                    Admin
-                  </TabsTrigger>
+              <Tabs value={activeRole} onValueChange={(v) => setActiveRole(v as any)}>
+                <TabsList className="grid w-full grid-cols-3 mb-6">
+                  <TabsTrigger value="student">Student</TabsTrigger>
+                  <TabsTrigger value="teacher">Teacher</TabsTrigger>
+                  <TabsTrigger value="admin">Admin</TabsTrigger>
                 </TabsList>
-
-                {/* OAuth Buttons (for all roles) */}
-                <div className="grid grid-cols-2 gap-3 mb-6">
-                  <Button
-                    variant="outline"
-                    onClick={() => handleOAuthRegister("google")}
-                    disabled={!!oauthLoading}
-                    className="h-11"
-                  >
-                    {oauthLoading === "google" ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <>
-                        <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
-                          <path fill="currentColor" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                          <path fill="currentColor" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                          <path fill="currentColor" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                          <path fill="currentColor" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                        </svg>
-                        Google
-                      </>
-                    )}
-                  </Button>
-                  
-                  <Button
-                    variant="outline"
-                    onClick={() => handleOAuthRegister("github")}
-                    disabled={!!oauthLoading}
-                    className="h-11"
-                  >
-                    {oauthLoading === "github" ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <>
-                        <Github className="w-5 h-5 mr-2" />
-                        GitHub
-                      </>
-                    )}
-                  </Button>
-                </div>
-
-                {/* Divider */}
-                <div className="relative mb-6">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-gray-200" />
-                  </div>
-                  <div className="relative flex justify-center text-sm">
-                    <span className="px-2 bg-white text-gray-500">or register with email</span>
-                  </div>
-                </div>
 
                 {/* Student Form */}
                 <TabsContent value="student">
@@ -375,7 +263,7 @@ export default function RegisterPage() {
                         <Input
                           id="student-email"
                           type="email"
-                          placeholder="your@email.com"
+                          placeholder="student@example.com"
                           className="pl-10"
                           {...studentForm.register("email")}
                         />
@@ -386,13 +274,12 @@ export default function RegisterPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="student-phone">Phone (Optional)</Label>
+                      <Label htmlFor="student-phone">Phone (optional)</Label>
                       <div className="relative">
                         <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <Input
                           id="student-phone"
-                          type="tel"
-                          placeholder="+1 (555) 000-0000"
+                          placeholder="+1 234 567 8900"
                           className="pl-10"
                           {...studentForm.register("phone")}
                         />
@@ -424,11 +311,11 @@ export default function RegisterPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="student-confirm-password">Confirm Password</Label>
+                      <Label htmlFor="student-confirmPassword">Confirm Password</Label>
                       <div className="relative">
                         <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <Input
-                          id="student-confirm-password"
+                          id="student-confirmPassword"
                           type={showConfirmPassword ? "text" : "password"}
                           placeholder="••••••••"
                           className="pl-10 pr-10"
@@ -463,30 +350,53 @@ export default function RegisterPage() {
                 {/* Teacher Form */}
                 <TabsContent value="teacher">
                   <form onSubmit={teacherForm.handleSubmit(onTeacherSubmit)} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="teacher-name">Full Name</Label>
-                      <div className="relative">
-                        <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <Input
-                          id="teacher-name"
-                          placeholder="Dr. Jane Smith"
-                          className="pl-10"
-                          {...teacherForm.register("name")}
-                        />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="teacher-name">Full Name</Label>
+                        <div className="relative">
+                          <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <Input
+                            id="teacher-name"
+                            placeholder="Dr. Jane Smith"
+                            className="pl-10"
+                            {...teacherForm.register("name")}
+                          />
+                        </div>
+                        {teacherForm.formState.errors.name && (
+                          <p className="text-sm text-red-500">{teacherForm.formState.errors.name.message}</p>
+                        )}
                       </div>
-                      {teacherForm.formState.errors.name && (
-                        <p className="text-sm text-red-500">{teacherForm.formState.errors.name.message}</p>
-                      )}
+
+                      <div className="space-y-2">
+                        <Label htmlFor="teacher-email">Email</Label>
+                        <div className="relative">
+                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <Input
+                            id="teacher-email"
+                            type="email"
+                            placeholder="teacher@example.com"
+                            className="pl-10"
+                            {...teacherForm.register("email")}
+                          />
+                        </div>
+                        {teacherForm.formState.errors.email && (
+                          <p className="text-sm text-red-500">{teacherForm.formState.errors.email.message}</p>
+                        )}
+                      </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="teacher-department">Department</Label>
-                        <Input
-                          id="teacher-department"
-                          placeholder="Computer Science"
-                          {...teacherForm.register("department")}
-                        />
+                        <div className="relative">
+                          <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <Input
+                            id="teacher-department"
+                            placeholder="Computer Science"
+                            className="pl-10"
+                            {...teacherForm.register("department")}
+                          />
+                        </div>
                         {teacherForm.formState.errors.department && (
                           <p className="text-sm text-red-500">{teacherForm.formState.errors.department.message}</p>
                         )}
@@ -494,11 +404,15 @@ export default function RegisterPage() {
 
                       <div className="space-y-2">
                         <Label htmlFor="teacher-subject">Subject</Label>
-                        <Input
-                          id="teacher-subject"
-                          placeholder="Data Structures"
-                          {...teacherForm.register("subject")}
-                        />
+                        <div className="relative">
+                          <BookOpen className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <Input
+                            id="teacher-subject"
+                            placeholder="Programming"
+                            className="pl-10"
+                            {...teacherForm.register("subject")}
+                          />
+                        </div>
                         {teacherForm.formState.errors.subject && (
                           <p className="text-sm text-red-500">{teacherForm.formState.errors.subject.message}</p>
                         )}
@@ -506,12 +420,12 @@ export default function RegisterPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="teacher-university">University/Institution</Label>
+                      <Label htmlFor="teacher-university">University</Label>
                       <div className="relative">
-                        <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <GraduationCap className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <Input
                           id="teacher-university"
-                          placeholder="Stanford University"
+                          placeholder="University Name"
                           className="pl-10"
                           {...teacherForm.register("university")}
                         />
@@ -521,85 +435,53 @@ export default function RegisterPage() {
                       )}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="teacher-phone">Phone (optional)</Label>
+                      <div className="relative">
+                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Input
+                          id="teacher-phone"
+                          placeholder="+1 234 567 8900"
+                          className="pl-10"
+                          {...teacherForm.register("phone")}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="teacher-email">Email</Label>
+                        <Label htmlFor="teacher-password">Password</Label>
                         <div className="relative">
-                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                           <Input
-                            id="teacher-email"
-                            type="email"
-                            placeholder="your@email.com"
+                            id="teacher-password"
+                            type={showPassword ? "text" : "password"}
+                            placeholder="••••••••"
                             className="pl-10"
-                            {...teacherForm.register("email")}
+                            {...teacherForm.register("password")}
                           />
                         </div>
-                        {teacherForm.formState.errors.email && (
-                          <p className="text-sm text-red-500">{teacherForm.formState.errors.email.message}</p>
+                        {teacherForm.formState.errors.password && (
+                          <p className="text-sm text-red-500">{teacherForm.formState.errors.password.message}</p>
                         )}
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="teacher-phone">Phone</Label>
+                        <Label htmlFor="teacher-confirmPassword">Confirm</Label>
                         <div className="relative">
-                          <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                           <Input
-                            id="teacher-phone"
-                            type="tel"
-                            placeholder="+1 (555) 000-0000"
+                            id="teacher-confirmPassword"
+                            type={showConfirmPassword ? "text" : "password"}
+                            placeholder="••••••••"
                             className="pl-10"
-                            {...teacherForm.register("phone")}
+                            {...teacherForm.register("confirmPassword")}
                           />
                         </div>
+                        {teacherForm.formState.errors.confirmPassword && (
+                          <p className="text-sm text-red-500">{teacherForm.formState.errors.confirmPassword.message}</p>
+                        )}
                       </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="teacher-password">Password</Label>
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <Input
-                          id="teacher-password"
-                          type={showPassword ? "text" : "password"}
-                          placeholder="••••••••"
-                          className="pl-10 pr-10"
-                          {...teacherForm.register("password")}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                        >
-                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </button>
-                      </div>
-                      {teacherForm.formState.errors.password && (
-                        <p className="text-sm text-red-500">{teacherForm.formState.errors.password.message}</p>
-                      )}
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="teacher-confirm-password">Confirm Password</Label>
-                      <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <Input
-                          id="teacher-confirm-password"
-                          type={showConfirmPassword ? "text" : "password"}
-                          placeholder="••••••••"
-                          className="pl-10 pr-10"
-                          {...teacherForm.register("confirmPassword")}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                        >
-                          {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                        </button>
-                      </div>
-                      {teacherForm.formState.errors.confirmPassword && (
-                        <p className="text-sm text-red-500">{teacherForm.formState.errors.confirmPassword.message}</p>
-                      )}
                     </div>
 
                     <Button type="submit" className="w-full h-11" disabled={isLoading}>
@@ -617,13 +499,6 @@ export default function RegisterPage() {
 
                 {/* Admin Form */}
                 <TabsContent value="admin">
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-                    <p className="text-sm text-yellow-800">
-                      <strong>Note:</strong> Admin accounts have full access to all platform data and settings. 
-                      Only authorized personnel should create admin accounts.
-                    </p>
-                  </div>
-
                   <form onSubmit={adminForm.handleSubmit(onAdminSubmit)} className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="admin-name">Full Name</Label>
@@ -648,7 +523,7 @@ export default function RegisterPage() {
                         <Input
                           id="admin-email"
                           type="email"
-                          placeholder="admin@educonnect.com"
+                          placeholder="admin@example.com"
                           className="pl-10"
                           {...adminForm.register("email")}
                         />
@@ -683,11 +558,11 @@ export default function RegisterPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="admin-confirm-password">Confirm Password</Label>
+                      <Label htmlFor="admin-confirmPassword">Confirm Password</Label>
                       <div className="relative">
                         <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <Input
-                          id="admin-confirm-password"
+                          id="admin-confirmPassword"
                           type={showConfirmPassword ? "text" : "password"}
                           placeholder="••••••••"
                           className="pl-10 pr-10"
@@ -720,18 +595,26 @@ export default function RegisterPage() {
                 </TabsContent>
               </Tabs>
 
-              {/* Sign In Link */}
               <p className="text-center text-sm text-gray-600 mt-6">
                 Already have an account?{" "}
                 <Link href="/auth/login" className="text-blue-600 hover:text-blue-700 font-medium">
                   Sign in
                 </Link>
               </p>
+
+              {/* Demo Accounts Info */}
+              <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+                <p className="text-sm font-medium text-blue-800 mb-2">Demo Accounts:</p>
+                <div className="text-xs text-blue-700 space-y-1">
+                  <p><strong>Student:</strong> student@demo.com / password123</p>
+                  <p><strong>Teacher:</strong> teacher@demo.com / password123</p>
+                  <p><strong>Admin:</strong> admin@demo.com / password123</p>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </motion.div>
 
-        {/* Footer */}
         <p className="text-center text-xs text-gray-500 mt-6">
           By signing up, you agree to our{" "}
           <a href="#" className="text-blue-600 hover:underline">Terms of Service</a>

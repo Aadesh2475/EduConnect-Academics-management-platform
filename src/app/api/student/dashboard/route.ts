@@ -1,200 +1,113 @@
 import { NextRequest, NextResponse } from "next/server"
-import prisma from "@/lib/prisma"
-import { getSession } from "@/lib/auth/session"
-import { errorResponse } from "@/lib/api/helpers"
 
-// GET /api/student/dashboard - Get student dashboard data
 export async function GET(req: NextRequest) {
   try {
-    const session = await getSession()
-    if (!session) return errorResponse("Unauthorized", 401)
-    if (session.role !== "STUDENT") return errorResponse("Forbidden", 403)
-
-    const userId = session.userId || session.id
-
-    // Check if student profile exists
-    let student = await prisma.student.findUnique({
-      where: { userId },
-      include: {
-        user: {
-          select: { name: true, email: true, image: true }
-        },
-        classEnrollments: {
-          where: { status: "APPROVED" },
-          include: {
-            class: {
-              include: {
-                teacher: {
-                  include: {
-                    user: { select: { name: true, email: true, image: true } }
-                  }
-                },
-                _count: {
-                  select: { enrollments: true, assignments: true, exams: true, materials: true }
-                }
-              }
-            }
-          }
-        }
-      }
-    })
-
-    // If student profile doesn't exist, create one
-    if (!student) {
-      const user = await prisma.user.findUnique({
-        where: { id: userId }
-      })
-
-      if (!user) {
-        return errorResponse("User not found", 404)
-      }
-
-      student = await prisma.student.create({
-        data: {
-          userId,
-        },
-        include: {
-          user: {
-            select: { name: true, email: true, image: true }
-          },
-          classEnrollments: {
-            where: { status: "APPROVED" },
-            include: {
-              class: {
-                include: {
-                  teacher: {
-                    include: {
-                      user: { select: { name: true, email: true, image: true } }
-                    }
-                  },
-                  _count: {
-                    select: { enrollments: true, assignments: true, exams: true, materials: true }
-                  }
-                }
-              }
-            }
-          }
-        }
-      })
+    // Get user info from cookie
+    const userInfo = req.cookies.get("user_info")?.value
+    
+    if (!userInfo) {
+      return NextResponse.json({ 
+        success: false, 
+        error: "Unauthorized" 
+      }, { status: 401 })
     }
 
-    const classIds = student.classEnrollments.map(e => e.class.id)
-
-    // Get pending assignments count
-    const pendingAssignments = classIds.length > 0 ? await prisma.assignment.count({
-      where: {
-        classId: { in: classIds },
-        dueDate: { gte: new Date() },
-        submissions: {
-          none: { studentId: student.id }
-        }
-      }
-    }) : 0
-
-    // Get upcoming exams
-    const upcomingExams = classIds.length > 0 ? await prisma.exam.count({
-      where: {
-        classId: { in: classIds },
-        startTime: { gte: new Date() },
-        attempts: {
-          none: { studentId: student.id }
-        }
-      }
-    }) : 0
-
-    // Get attendance stats
-    let attendanceRate = 0
-    if (classIds.length > 0) {
-      const attendanceSessions = await prisma.attendanceSession.findMany({
-        where: { classId: { in: classIds } },
-        include: {
-          attendances: {
-            where: { studentId: student.id }
-          }
-        }
-      })
-
-      const totalSessions = attendanceSessions.length
-      const presentSessions = attendanceSessions.filter(
-        s => s.attendances[0]?.status === "PRESENT" || s.attendances[0]?.status === "LATE"
-      ).length
-      attendanceRate = totalSessions > 0 ? Math.round((presentSessions / totalSessions) * 100) : 100
+    const user = JSON.parse(userInfo)
+    
+    if (user.role !== "STUDENT") {
+      return NextResponse.json({ 
+        success: false, 
+        error: "Forbidden" 
+      }, { status: 403 })
     }
 
-    // Get recent notifications
-    const notifications = await prisma.notification.findMany({
-      where: { userId },
-      orderBy: { createdAt: "desc" },
-      take: 5
-    })
+    // Return mock dashboard data
+    const dashboardData = {
+      student: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: "123-456-7890",
+        department: "Computer Science",
+        semester: 3,
+        enrollmentNumber: "STU-2024-001",
+        avatar: null,
+      },
+      stats: {
+        enrolledClasses: 4,
+        pendingAssignments: 3,
+        upcomingExams: 2,
+        attendanceRate: 92,
+      },
+      classes: [
+        {
+          id: "class-1",
+          name: "Introduction to Programming",
+          code: "CS101",
+          department: "Computer Science",
+          semester: 1,
+          subject: "Programming",
+          teacher: { user: { name: "Dr. John Smith" } },
+          _count: { enrollments: 35 },
+        },
+        {
+          id: "class-2",
+          name: "Data Structures",
+          code: "CS201",
+          department: "Computer Science",
+          semester: 2,
+          subject: "Data Structures",
+          teacher: { user: { name: "Prof. Jane Doe" } },
+          _count: { enrollments: 28 },
+        },
+        {
+          id: "class-3",
+          name: "Web Development",
+          code: "CS301",
+          department: "Computer Science",
+          semester: 3,
+          subject: "Web Dev",
+          teacher: { user: { name: "Dr. Mike Wilson" } },
+          _count: { enrollments: 42 },
+        },
+      ],
+      notifications: [
+        {
+          id: "notif-1",
+          title: "New Assignment Posted",
+          message: "CS101: Complete the programming exercise by Friday",
+          createdAt: new Date().toISOString(),
+          read: false,
+        },
+        {
+          id: "notif-2",
+          title: "Exam Schedule Updated",
+          message: "Midterm exams have been rescheduled to next week",
+          createdAt: new Date(Date.now() - 86400000).toISOString(),
+          read: true,
+        },
+      ],
+      announcements: [
+        {
+          id: "ann-1",
+          title: "Campus Event",
+          content: "Join us for the annual tech fest next month!",
+          createdAt: new Date().toISOString(),
+          class: { name: "General" },
+          teacher: { user: { name: "Admin" } },
+        },
+      ],
+    }
 
-    // Get recent announcements
-    const announcements = classIds.length > 0 ? await prisma.announcement.findMany({
-      where: {
-        OR: [
-          { classId: { in: classIds } },
-          { isGlobal: true }
-        ]
-      },
-      include: {
-        teacher: {
-          include: { user: { select: { name: true } } }
-        },
-        class: { select: { name: true, code: true } }
-      },
-      orderBy: { createdAt: "desc" },
-      take: 5
-    }) : await prisma.announcement.findMany({
-      where: { isGlobal: true },
-      include: {
-        teacher: {
-          include: { user: { select: { name: true } } }
-        },
-        class: { select: { name: true, code: true } }
-      },
-      orderBy: { createdAt: "desc" },
-      take: 5
-    })
-
-    return NextResponse.json({
-      success: true,
-      data: {
-        student: {
-          id: student.id,
-          name: student.user.name,
-          email: student.user.email,
-          image: student.user.image,
-          enrollmentNo: student.enrollmentNo,
-          department: student.department,
-          semester: student.semester,
-        },
-        stats: {
-          enrolledClasses: student.classEnrollments.length,
-          pendingAssignments,
-          upcomingExams,
-          attendanceRate,
-        },
-        classes: student.classEnrollments.map(e => ({
-          id: e.class.id,
-          name: e.class.name,
-          code: e.class.code,
-          subject: e.class.subject,
-          department: e.class.department,
-          semester: e.class.semester,
-          teacher: {
-            name: e.class.teacher.user.name,
-            email: e.class.teacher.user.email,
-            image: e.class.teacher.user.image,
-          },
-          _count: e.class._count,
-          joinedAt: e.joinedAt,
-        })),
-        notifications,
-        announcements,
-      }
+    return NextResponse.json({ 
+      success: true, 
+      data: dashboardData 
     })
   } catch (error) {
-    console.error("Student dashboard error:", error)
-    return errorResponse("Internal server error", 500)
+    console.error("Dashboard error:", error)
+    return NextResponse.json({ 
+      success: false, 
+      error: "Internal server error" 
+    }, { status: 500 })
   }
 }
