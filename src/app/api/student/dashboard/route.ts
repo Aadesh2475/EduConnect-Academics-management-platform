@@ -2,36 +2,32 @@ import { NextRequest, NextResponse } from "next/server"
 
 export async function GET(req: NextRequest) {
   try {
-    // Get user info from cookie
-    const userInfo = req.cookies.get("user_info")?.value
-    
-    if (!userInfo) {
+    const userInfoCookie = req.cookies.get("user_info")?.value
+    const sessionToken = req.cookies.get("session_token")?.value
+
+    if (!sessionToken) {
       return NextResponse.json({ 
         success: false, 
         error: "Unauthorized" 
       }, { status: 401 })
     }
 
-    const user = JSON.parse(userInfo)
-    
-    if (user.role !== "STUDENT") {
-      return NextResponse.json({ 
-        success: false, 
-        error: "Forbidden" 
-      }, { status: 403 })
+    let user = { id: "demo", name: "Demo Student", email: "student@demo.com", role: "STUDENT" }
+    if (userInfoCookie) {
+      try {
+        user = JSON.parse(userInfoCookie)
+      } catch {}
     }
 
-    // Return mock dashboard data
+    // Return demo dashboard data
     const dashboardData = {
       student: {
         id: user.id,
         name: user.name,
         email: user.email,
-        phone: "123-456-7890",
+        avatar: null,
         department: "Computer Science",
         semester: 3,
-        enrollmentNumber: "STU-2024-001",
-        avatar: null,
       },
       stats: {
         enrolledClasses: 4,
@@ -42,67 +38,78 @@ export async function GET(req: NextRequest) {
       classes: [
         {
           id: "class-1",
-          name: "Introduction to Programming",
-          code: "CS101",
-          department: "Computer Science",
-          semester: 1,
-          subject: "Programming",
-          teacher: { user: { name: "Dr. John Smith" } },
-          _count: { enrollments: 35 },
-        },
-        {
-          id: "class-2",
           name: "Data Structures",
           code: "CS201",
           department: "Computer Science",
-          semester: 2,
-          subject: "Data Structures",
-          teacher: { user: { name: "Prof. Jane Doe" } },
-          _count: { enrollments: 28 },
+          semester: 3,
+          teacher: { name: "Dr. Smith", image: null },
+          _count: { enrollments: 45 },
         },
         {
-          id: "class-3",
+          id: "class-2",
           name: "Web Development",
           code: "CS301",
           department: "Computer Science",
           semester: 3,
-          subject: "Web Dev",
-          teacher: { user: { name: "Dr. Mike Wilson" } },
+          teacher: { name: "Prof. Johnson", image: null },
+          _count: { enrollments: 38 },
+        },
+        {
+          id: "class-3",
+          name: "Database Systems",
+          code: "CS302",
+          department: "Computer Science",
+          semester: 3,
+          teacher: { name: "Dr. Williams", image: null },
           _count: { enrollments: 42 },
+        },
+        {
+          id: "class-4",
+          name: "Operating Systems",
+          code: "CS303",
+          department: "Computer Science",
+          semester: 3,
+          teacher: { name: "Prof. Brown", image: null },
+          _count: { enrollments: 40 },
         },
       ],
       notifications: [
         {
           id: "notif-1",
-          title: "New Assignment Posted",
-          message: "CS101: Complete the programming exercise by Friday",
+          title: "New Assignment",
+          message: "Data Structures assignment due in 3 days",
           createdAt: new Date().toISOString(),
           read: false,
         },
         {
           id: "notif-2",
-          title: "Exam Schedule Updated",
-          message: "Midterm exams have been rescheduled to next week",
+          title: "Exam Scheduled",
+          message: "Web Development midterm on Friday",
           createdAt: new Date(Date.now() - 86400000).toISOString(),
-          read: true,
+          read: false,
         },
       ],
       announcements: [
         {
           id: "ann-1",
           title: "Campus Event",
-          content: "Join us for the annual tech fest next month!",
-          createdAt: new Date().toISOString(),
+          content: "Tech fest starting next week. Register now!",
           class: { name: "General" },
           teacher: { user: { name: "Admin" } },
+          createdAt: new Date().toISOString(),
+        },
+        {
+          id: "ann-2",
+          title: "Holiday Notice",
+          content: "University will be closed on Monday for maintenance.",
+          class: { name: "General" },
+          teacher: { user: { name: "Admin" } },
+          createdAt: new Date(Date.now() - 172800000).toISOString(),
         },
       ],
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      data: dashboardData 
-    })
+    return NextResponse.json({ success: true, data: dashboardData })
   } catch (error) {
     console.error("Dashboard error:", error)
     return NextResponse.json({ 

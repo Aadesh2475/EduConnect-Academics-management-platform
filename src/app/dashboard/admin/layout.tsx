@@ -8,15 +8,19 @@ async function getUser() {
   const userInfoCookie = cookieStore.get("user_info")?.value
   const sessionToken = cookieStore.get("session_token")?.value
 
-  if (!sessionToken || !userInfoCookie) {
+  if (!sessionToken) {
     return null
   }
 
-  try {
-    return JSON.parse(userInfoCookie)
-  } catch {
-    return null
+  if (userInfoCookie) {
+    try {
+      return JSON.parse(userInfoCookie)
+    } catch {
+      return null
+    }
   }
+
+  return null
 }
 
 export default async function AdminDashboardLayout({
@@ -30,6 +34,7 @@ export default async function AdminDashboardLayout({
     redirect("/auth/login")
   }
 
+  // Check if user is admin
   if (user.role !== "ADMIN") {
     redirect("/dashboard")
   }

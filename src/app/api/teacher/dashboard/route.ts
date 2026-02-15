@@ -2,107 +2,124 @@ import { NextRequest, NextResponse } from "next/server"
 
 export async function GET(req: NextRequest) {
   try {
-    // Get user info from cookie
-    const userInfo = req.cookies.get("user_info")?.value
-    
-    if (!userInfo) {
+    const userInfoCookie = req.cookies.get("user_info")?.value
+    const sessionToken = req.cookies.get("session_token")?.value
+
+    if (!sessionToken) {
       return NextResponse.json({ 
         success: false, 
         error: "Unauthorized" 
       }, { status: 401 })
     }
 
-    const user = JSON.parse(userInfo)
-    
-    if (user.role !== "TEACHER") {
-      return NextResponse.json({ 
-        success: false, 
-        error: "Forbidden" 
-      }, { status: 403 })
+    let user = { id: "demo", name: "Demo Teacher", email: "teacher@demo.com", role: "TEACHER" }
+    if (userInfoCookie) {
+      try {
+        user = JSON.parse(userInfoCookie)
+      } catch {}
     }
 
-    // Return mock dashboard data
+    // Return demo dashboard data
     const dashboardData = {
       teacher: {
         id: user.id,
         name: user.name,
         email: user.email,
+        avatar: null,
         department: "Computer Science",
         subject: "Programming",
         university: "Demo University",
-        phone: "123-456-7890",
-        avatar: null,
       },
       stats: {
-        totalClasses: 5,
-        totalStudents: 156,
-        pendingRequests: 8,
-        pendingGrading: 12,
+        totalStudents: 125,
+        totalClasses: 4,
+        pendingJoinRequests: 5,
+        assignmentsToGrade: 12,
       },
       classes: [
         {
           id: "class-1",
-          name: "Introduction to Programming",
-          code: "CS101",
+          name: "Data Structures",
+          code: "CS201",
           department: "Computer Science",
-          semester: 1,
-          subject: "Programming",
+          semester: 3,
           isActive: true,
           _count: { 
-            enrollments: 35, 
+            enrollments: 45,
             assignments: 8,
             exams: 3,
-            materials: 15 
+            materials: 15,
           },
           pendingEnrollments: ["req-1", "req-2"],
         },
         {
           id: "class-2",
-          name: "Advanced Algorithms",
-          code: "CS401",
+          name: "Algorithms",
+          code: "CS301",
           department: "Computer Science",
           semester: 4,
-          subject: "Algorithms",
           isActive: true,
           _count: { 
-            enrollments: 28, 
+            enrollments: 38,
             assignments: 6,
             exams: 2,
-            materials: 12 
+            materials: 12,
           },
           pendingEnrollments: ["req-3"],
         },
         {
           id: "class-3",
-          name: "Data Structures",
-          code: "CS201",
+          name: "Advanced Programming",
+          code: "CS401",
           department: "Computer Science",
-          semester: 2,
-          subject: "Data Structures",
+          semester: 5,
           isActive: true,
           _count: { 
-            enrollments: 42, 
+            enrollments: 32,
             assignments: 10,
             exams: 4,
-            materials: 20 
+            materials: 18,
           },
           pendingEnrollments: [],
+        },
+        {
+          id: "class-4",
+          name: "Software Engineering",
+          code: "CS402",
+          department: "Computer Science",
+          semester: 6,
+          isActive: false,
+          _count: { 
+            enrollments: 10,
+            assignments: 5,
+            exams: 2,
+            materials: 8,
+          },
+          pendingEnrollments: ["req-4", "req-5"],
         },
       ],
       recentSubmissions: [
         {
           id: "sub-1",
-          student: { user: { name: "Alice Johnson", email: "alice@student.edu" } },
-          assignment: { title: "Programming Assignment 3" },
+          student: { name: "John Doe", email: "john@example.com" },
+          assignment: { title: "Binary Trees Implementation" },
           submittedAt: new Date().toISOString(),
-          status: "PENDING",
+          status: "SUBMITTED",
           marks: null,
         },
         {
           id: "sub-2",
-          student: { user: { name: "Bob Smith", email: "bob@student.edu" } },
-          assignment: { title: "Data Structures Quiz" },
+          student: { name: "Jane Smith", email: "jane@example.com" },
+          assignment: { title: "Graph Algorithms" },
           submittedAt: new Date(Date.now() - 3600000).toISOString(),
+          status: "SUBMITTED",
+          marks: null,
+        },
+        {
+          id: "sub-3",
+          student: { name: "Bob Wilson", email: "bob@example.com" },
+          assignment: { title: "Dynamic Programming" },
+          submittedAt: new Date(Date.now() - 7200000).toISOString(),
           status: "GRADED",
           marks: 85,
         },
@@ -110,32 +127,38 @@ export async function GET(req: NextRequest) {
       upcomingExams: [
         {
           id: "exam-1",
-          title: "Midterm Exam - CS101",
-          startTime: new Date(Date.now() + 7 * 86400000).toISOString(),
-          class: { name: "Introduction to Programming" },
+          title: "Midterm - Data Structures",
+          class: { name: "Data Structures" },
+          startTime: new Date(Date.now() + 172800000).toISOString(),
+          duration: 120,
         },
         {
           id: "exam-2",
-          title: "Quiz 3 - CS201",
-          startTime: new Date(Date.now() + 3 * 86400000).toISOString(),
-          class: { name: "Data Structures" },
+          title: "Quiz - Algorithms",
+          class: { name: "Algorithms" },
+          startTime: new Date(Date.now() + 432000000).toISOString(),
+          duration: 60,
         },
       ],
       notifications: [
         {
           id: "notif-1",
-          title: "New Enrollment Request",
-          message: "3 students have requested to join CS101",
+          title: "New Submission",
+          message: "John Doe submitted assignment",
           createdAt: new Date().toISOString(),
+          read: false,
+        },
+        {
+          id: "notif-2",
+          title: "Join Request",
+          message: "3 new students want to join CS201",
+          createdAt: new Date(Date.now() - 86400000).toISOString(),
           read: false,
         },
       ],
     }
 
-    return NextResponse.json({ 
-      success: true, 
-      data: dashboardData 
-    })
+    return NextResponse.json({ success: true, data: dashboardData })
   } catch (error) {
     console.error("Dashboard error:", error)
     return NextResponse.json({ 

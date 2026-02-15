@@ -77,14 +77,17 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [activeRole, setActiveRole] = useState<"student" | "teacher" | "admin">("student")
 
+  // Student Form
   const studentForm = useForm<StudentFormData>({
     resolver: zodResolver(studentSchema),
   })
 
+  // Teacher Form
   const teacherForm = useForm<TeacherFormData>({
     resolver: zodResolver(teacherSchema),
   })
 
+  // Admin Form
   const adminForm = useForm<AdminFormData>({
     resolver: zodResolver(adminSchema),
   })
@@ -185,7 +188,7 @@ export default function RegisterPage() {
       } else {
         toast({
           title: "Account Created!",
-          description: "Welcome to EduConnect",
+          description: "Welcome to EduConnect Admin Panel",
         })
         router.push("/dashboard/admin")
         router.refresh()
@@ -203,8 +206,9 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-50 to-indigo-50">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="w-full max-w-lg">
+        {/* Back to Home */}
         <Link 
           href="/" 
           className="inline-flex items-center text-gray-600 hover:text-blue-600 mb-6 transition-colors"
@@ -226,18 +230,27 @@ export default function RegisterPage() {
                 </div>
               </div>
               <CardTitle className="text-2xl font-bold">Create Account</CardTitle>
-              <CardDescription>Join EduConnect to get started</CardDescription>
+              <CardDescription>Join EduConnect today</CardDescription>
             </CardHeader>
             
             <CardContent className="pt-4">
               <Tabs value={activeRole} onValueChange={(v) => setActiveRole(v as any)}>
                 <TabsList className="grid w-full grid-cols-3 mb-6">
-                  <TabsTrigger value="student">Student</TabsTrigger>
-                  <TabsTrigger value="teacher">Teacher</TabsTrigger>
-                  <TabsTrigger value="admin">Admin</TabsTrigger>
+                  <TabsTrigger value="student" className="flex items-center gap-1">
+                    <User className="w-4 h-4" />
+                    Student
+                  </TabsTrigger>
+                  <TabsTrigger value="teacher" className="flex items-center gap-1">
+                    <BookOpen className="w-4 h-4" />
+                    Teacher
+                  </TabsTrigger>
+                  <TabsTrigger value="admin" className="flex items-center gap-1">
+                    <Building className="w-4 h-4" />
+                    Admin
+                  </TabsTrigger>
                 </TabsList>
 
-                {/* Student Form */}
+                {/* Student Registration Form */}
                 <TabsContent value="student">
                   <form onSubmit={studentForm.handleSubmit(onStudentSubmit)} className="space-y-4">
                     <div className="space-y-2">
@@ -274,12 +287,12 @@ export default function RegisterPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="student-phone">Phone (optional)</Label>
+                      <Label htmlFor="student-phone">Phone (Optional)</Label>
                       <div className="relative">
                         <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <Input
                           id="student-phone"
-                          placeholder="+1 234 567 8900"
+                          placeholder="+1234567890"
                           className="pl-10"
                           {...studentForm.register("phone")}
                         />
@@ -311,11 +324,11 @@ export default function RegisterPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="student-confirmPassword">Confirm Password</Label>
+                      <Label htmlFor="student-confirm-password">Confirm Password</Label>
                       <div className="relative">
                         <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <Input
-                          id="student-confirmPassword"
+                          id="student-confirm-password"
                           type={showConfirmPassword ? "text" : "password"}
                           placeholder="••••••••"
                           className="pl-10 pr-10"
@@ -347,7 +360,7 @@ export default function RegisterPage() {
                   </form>
                 </TabsContent>
 
-                {/* Teacher Form */}
+                {/* Teacher Registration Form */}
                 <TabsContent value="teacher">
                   <form onSubmit={teacherForm.handleSubmit(onTeacherSubmit)} className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
@@ -388,15 +401,11 @@ export default function RegisterPage() {
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="teacher-department">Department</Label>
-                        <div className="relative">
-                          <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          <Input
-                            id="teacher-department"
-                            placeholder="Computer Science"
-                            className="pl-10"
-                            {...teacherForm.register("department")}
-                          />
-                        </div>
+                        <Input
+                          id="teacher-department"
+                          placeholder="Computer Science"
+                          {...teacherForm.register("department")}
+                        />
                         {teacherForm.formState.errors.department && (
                           <p className="text-sm text-red-500">{teacherForm.formState.errors.department.message}</p>
                         )}
@@ -404,84 +413,90 @@ export default function RegisterPage() {
 
                       <div className="space-y-2">
                         <Label htmlFor="teacher-subject">Subject</Label>
-                        <div className="relative">
-                          <BookOpen className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          <Input
-                            id="teacher-subject"
-                            placeholder="Programming"
-                            className="pl-10"
-                            {...teacherForm.register("subject")}
-                          />
-                        </div>
+                        <Input
+                          id="teacher-subject"
+                          placeholder="Data Structures"
+                          {...teacherForm.register("subject")}
+                        />
                         {teacherForm.formState.errors.subject && (
                           <p className="text-sm text-red-500">{teacherForm.formState.errors.subject.message}</p>
                         )}
                       </div>
                     </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="teacher-university">University</Label>
-                      <div className="relative">
-                        <GraduationCap className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="teacher-university">University</Label>
                         <Input
                           id="teacher-university"
-                          placeholder="University Name"
-                          className="pl-10"
+                          placeholder="MIT"
                           {...teacherForm.register("university")}
                         />
+                        {teacherForm.formState.errors.university && (
+                          <p className="text-sm text-red-500">{teacherForm.formState.errors.university.message}</p>
+                        )}
                       </div>
-                      {teacherForm.formState.errors.university && (
-                        <p className="text-sm text-red-500">{teacherForm.formState.errors.university.message}</p>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="teacher-phone">Phone (Optional)</Label>
+                        <div className="relative">
+                          <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <Input
+                            id="teacher-phone"
+                            placeholder="+1234567890"
+                            className="pl-10"
+                            {...teacherForm.register("phone")}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="teacher-password">Password</Label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Input
+                          id="teacher-password"
+                          type={showPassword ? "text" : "password"}
+                          placeholder="••••••••"
+                          className="pl-10 pr-10"
+                          {...teacherForm.register("password")}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        >
+                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
+                      {teacherForm.formState.errors.password && (
+                        <p className="text-sm text-red-500">{teacherForm.formState.errors.password.message}</p>
                       )}
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="teacher-phone">Phone (optional)</Label>
+                      <Label htmlFor="teacher-confirm-password">Confirm Password</Label>
                       <div className="relative">
-                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <Input
-                          id="teacher-phone"
-                          placeholder="+1 234 567 8900"
-                          className="pl-10"
-                          {...teacherForm.register("phone")}
+                          id="teacher-confirm-password"
+                          type={showConfirmPassword ? "text" : "password"}
+                          placeholder="••••••••"
+                          className="pl-10 pr-10"
+                          {...teacherForm.register("confirmPassword")}
                         />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        >
+                          {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
                       </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="teacher-password">Password</Label>
-                        <div className="relative">
-                          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          <Input
-                            id="teacher-password"
-                            type={showPassword ? "text" : "password"}
-                            placeholder="••••••••"
-                            className="pl-10"
-                            {...teacherForm.register("password")}
-                          />
-                        </div>
-                        {teacherForm.formState.errors.password && (
-                          <p className="text-sm text-red-500">{teacherForm.formState.errors.password.message}</p>
-                        )}
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="teacher-confirmPassword">Confirm</Label>
-                        <div className="relative">
-                          <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          <Input
-                            id="teacher-confirmPassword"
-                            type={showConfirmPassword ? "text" : "password"}
-                            placeholder="••••••••"
-                            className="pl-10"
-                            {...teacherForm.register("confirmPassword")}
-                          />
-                        </div>
-                        {teacherForm.formState.errors.confirmPassword && (
-                          <p className="text-sm text-red-500">{teacherForm.formState.errors.confirmPassword.message}</p>
-                        )}
-                      </div>
+                      {teacherForm.formState.errors.confirmPassword && (
+                        <p className="text-sm text-red-500">{teacherForm.formState.errors.confirmPassword.message}</p>
+                      )}
                     </div>
 
                     <Button type="submit" className="w-full h-11" disabled={isLoading}>
@@ -497,7 +512,7 @@ export default function RegisterPage() {
                   </form>
                 </TabsContent>
 
-                {/* Admin Form */}
+                {/* Admin Registration Form */}
                 <TabsContent value="admin">
                   <form onSubmit={adminForm.handleSubmit(onAdminSubmit)} className="space-y-4">
                     <div className="space-y-2">
@@ -558,11 +573,11 @@ export default function RegisterPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="admin-confirmPassword">Confirm Password</Label>
+                      <Label htmlFor="admin-confirm-password">Confirm Password</Label>
                       <div className="relative">
                         <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <Input
-                          id="admin-confirmPassword"
+                          id="admin-confirm-password"
                           type={showConfirmPassword ? "text" : "password"}
                           placeholder="••••••••"
                           className="pl-10 pr-10"
@@ -595,26 +610,18 @@ export default function RegisterPage() {
                 </TabsContent>
               </Tabs>
 
+              {/* Sign In Link */}
               <p className="text-center text-sm text-gray-600 mt-6">
                 Already have an account?{" "}
                 <Link href="/auth/login" className="text-blue-600 hover:text-blue-700 font-medium">
                   Sign in
                 </Link>
               </p>
-
-              {/* Demo Accounts Info */}
-              <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-                <p className="text-sm font-medium text-blue-800 mb-2">Demo Accounts:</p>
-                <div className="text-xs text-blue-700 space-y-1">
-                  <p><strong>Student:</strong> student@demo.com / password123</p>
-                  <p><strong>Teacher:</strong> teacher@demo.com / password123</p>
-                  <p><strong>Admin:</strong> admin@demo.com / password123</p>
-                </div>
-              </div>
             </CardContent>
           </Card>
         </motion.div>
 
+        {/* Footer */}
         <p className="text-center text-xs text-gray-500 mt-6">
           By signing up, you agree to our{" "}
           <a href="#" className="text-blue-600 hover:underline">Terms of Service</a>
