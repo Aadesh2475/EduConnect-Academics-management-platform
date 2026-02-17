@@ -1,178 +1,143 @@
-"use client"
+"use client";
 
-// Simplified auth client for demo/preview purposes
-// Uses localStorage for session management
-
-export interface AuthUser {
+// Session user type
+export interface SessionUser {
   id: string;
   email: string;
   name: string;
-  role: "STUDENT" | "TEACHER" | "ADMIN";
-  image?: string;
+  image: string | null;
+  role: string;
+  theme: string;
 }
 
-export interface AuthSession {
-  user: AuthUser;
-  token: string;
-  expiresAt: number;
+// API response types
+interface AuthResponse {
+  success: boolean;
+  user?: {
+    id: string;
+    email: string;
+    name: string;
+    role: string;
+    theme?: string;
+  };
+  error?: string;
+  message?: string;
 }
 
-const SESSION_KEY = "educonnect_session";
-
-// Helper function to generate unique ID
-function generateId(): string {
-  return Math.random().toString(36).substring(2) + Date.now().toString(36);
+interface SessionResponse {
+  success: boolean;
+  data: SessionUser | null;
 }
 
-// Get session from localStorage
-export function getStoredSession(): AuthSession | null {
-  if (typeof window === "undefined") return null;
-  
+// Login function
+export async function signIn(email: string, password: string): Promise<AuthResponse> {
   try {
-    const stored = localStorage.getItem(SESSION_KEY);
-    if (!stored) return null;
-    
-    const session: AuthSession = JSON.parse(stored);
-    
-    // Check if session is expired
-    if (session.expiresAt < Date.now()) {
-      localStorage.removeItem(SESSION_KEY);
-      return null;
-    }
-    
-    return session;
-  } catch {
+    const response = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Sign in error:", error);
+    return { success: false, error: "Network error. Please try again." };
+  }
+}
+
+// Register function
+export async function signUp(data: {
+  email: string;
+  password: string;
+  name: string;
+  role?: string;
+  phone?: string;
+  department?: string;
+  subject?: string;
+  university?: string;
+}): Promise<AuthResponse> {
+  try {
+    const response = await fetch("/api/auth/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+
+    const result = await response.json();
+    return result;
+  } catch (error) {
+    console.error("Sign up error:", error);
+    return { success: false, error: "Network error. Please try again." };
+  }
+}
+
+// Logout function
+export async function signOut(): Promise<{ success: boolean; error?: string }> {
+  try {
+    const response = await fetch("/api/auth/logout", {
+      method: "POST",
+    });
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Sign out error:", error);
+    return { success: false, error: "Network error. Please try again." };
+  }
+}
+
+// Get current session
+export async function getSession(): Promise<SessionUser | null> {
+  try {
+    const response = await fetch("/api/auth/session", {
+      method: "GET",
+      cache: "no-store",
+    });
+
+    const data: SessionResponse = await response.json();
+    return data.success ? data.data : null;
+  } catch (error) {
+    console.error("Get session error:", error);
     return null;
   }
 }
 
-// Save session to localStorage
-function saveSession(session: AuthSession): void {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-}
-
-// Clear session
-function clearSession(): void {
-  if (typeof window === "undefined") return;
-  localStorage.removeItem(SESSION_KEY);
-}
-
-// Sign up function
-export const signUp = {
-  email: async (data: {
-    email: string;
-    password: string;
-    name: string;
-    role?: string;
-    phone?: string;
-    department?: string;
-    subject?: string;
-    university?: string;
-  }): Promise<{ data?: { user: AuthUser }; error?: { message: string } }> => {
-    try {
-      const response = await fetch("/api/auth/signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      
-      const result = await response.json();
-      
-      if (!response.ok || !result.success) {
-        return { error: { message: result.error || "Registration failed" } };
-      }
-      
-      // Create session
-      const session: AuthSession = {
-        user: result.data,
-        token: generateId(),
-        expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
-      };
-      
-      saveSession(session);
-      
-      return { data: { user: result.data } };
-    } catch (error) {
-      console.error("Signup error:", error);
-      return { error: { message: "Network error. Please try again." } };
-    }
-  },
-};
-
-// Sign in function
-export const signIn = {
-  email: async (data: {
-    email: string;
-    password: string;
-  }): Promise<{ data?: { user: AuthUser }; error?: { message: string } }> => {
-    try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      
-      const result = await response.json();
-      
-      if (!response.ok || !result.success) {
-        return { error: { message: result.error || "Login failed" } };
-      }
-      
-      // Create session
-      const session: AuthSession = {
-        user: result.data,
-        token: generateId(),
-        expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
-      };
-      
-      saveSession(session);
-      
-      return { data: { user: result.data } };
-    } catch (error) {
-      console.error("Login error:", error);
-      return { error: { message: "Network error. Please try again." } };
-    }
-  },
-  
-  social: async (data: { provider: string; callbackURL?: string }) => {
-    // For demo, social login is not supported without proper OAuth setup
-    console.log("Social login not available in demo mode");
-    return { error: { message: "Social login is not available in demo mode. Please use email/password." } };
-  },
-};
-
-// Sign out function
-export const signOut = async (): Promise<void> => {
+// Update theme preference
+export async function updateTheme(theme: string): Promise<{ success: boolean; error?: string }> {
   try {
-    await fetch("/api/auth/logout", { method: "POST" });
-  } catch {
-    // Ignore errors
-  }
-  clearSession();
-};
+    const response = await fetch("/api/user/theme", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ theme }),
+    });
 
-// Get session hook
-export function useSession(): { data: AuthSession | null; status: "loading" | "authenticated" | "unauthenticated" } {
-  if (typeof window === "undefined") {
-    return { data: null, status: "loading" };
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("Update theme error:", error);
+    return { success: false, error: "Failed to update theme" };
   }
-  
-  const session = getStoredSession();
-  
-  return {
-    data: session,
-    status: session ? "authenticated" : "unauthenticated",
-  };
 }
 
-// Get session function
-export async function getSession(): Promise<AuthSession | null> {
-  return getStoredSession();
+// Get theme preference
+export async function getTheme(): Promise<string> {
+  try {
+    const response = await fetch("/api/user/theme", {
+      method: "GET",
+      cache: "no-store",
+    });
+
+    const data = await response.json();
+    return data.theme || "light";
+  } catch (error) {
+    console.error("Get theme error:", error);
+    return "light";
+  }
 }
 
-// Helper function to get role-based dashboard path
-export function getDashboardPath(role?: string): string {
+// Helper function to get dashboard path based on role
+export function getDashboardPath(role: string): string {
   switch (role?.toUpperCase()) {
     case "ADMIN":
       return "/dashboard/admin";
@@ -183,3 +148,26 @@ export function getDashboardPath(role?: string): string {
       return "/dashboard/student";
   }
 }
+
+// Custom hook-like function to use session in components
+export function useAuth() {
+  return {
+    signIn,
+    signUp,
+    signOut,
+    getSession,
+    updateTheme,
+    getTheme,
+    getDashboardPath,
+  };
+}
+
+export default {
+  signIn,
+  signUp,
+  signOut,
+  getSession,
+  updateTheme,
+  getTheme,
+  getDashboardPath,
+};

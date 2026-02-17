@@ -1,120 +1,219 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server";
+import { getSession } from "@/lib/auth-utils";
+import prisma from "@/lib/prisma";
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
-    const userInfoCookie = req.cookies.get("user_info")?.value
-    const sessionToken = req.cookies.get("session_token")?.value
+    const session = await getSession();
 
-    if (!sessionToken) {
-      return NextResponse.json({ 
-        success: false, 
-        error: "Unauthorized" 
-      }, { status: 401 })
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 }
+      );
     }
 
-    let user = { id: "demo", name: "Demo Student", email: "student@demo.com", role: "STUDENT" }
-    if (userInfoCookie) {
-      try {
-        user = JSON.parse(userInfoCookie)
-      } catch {}
+    if (session.role !== "STUDENT") {
+      return NextResponse.json(
+        { success: false, error: "Forbidden - Student access only" },
+        { status: 403 }
+      );
     }
 
-    // Return demo dashboard data
-    const dashboardData = {
-      student: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        avatar: null,
-        department: "Computer Science",
-        semester: 3,
+    // Get student profile
+    const student = await prisma.student.findUnique({
+      where: { userId: session.id },
+      include: {
+        classEnrollments: {
+          where: { status: "APPROVED" },
+          include: {
+            class: {
+              include: {
+                teacher: {
+                  include: { user: { select: { name: true } } }
+                },
+                _count: {
+                  select: {
+                    enrollments: { where: { status: "APPROVED" } },
+                    assignments: true,
+                    materials: true,
+                  }
+                }
+              }
+            }
+          }
+        },
+        submissions: {
+          where: { status: "PENDING" },
+          include: { assignment: { select: { title: true, dueDate: true } } }
+        },
+        examAttempts: true,
+        attendances: { where: { status: "PRESENT" } },
+      }
+    });
+
+    // Get total number of classes enrolled
+    const enrolledClassIds = student?.classEnrollments.map(e => e.classId) || [];
+
+    // Get upcoming assignments
+    const upcomingAssignments = enrolledClassIds.length > 0 ? await prisma.assignment.findMany({
+      where: {
+        classId: { in: enrolledClassIds },
+        dueDate: { gte: new Date() },
+        isActive: true,
       },
-      stats: {
-        enrolledClasses: 4,
-        pendingAssignments: 3,
-        upcomingExams: 2,
-        attendanceRate: 92,
-      },
-      classes: [
-        {
-          id: "class-1",
-          name: "Data Structures",
-          code: "CS201",
-          department: "Computer Science",
-          semester: 3,
-          teacher: { name: "Dr. Smith", image: null },
-          _count: { enrollments: 45 },
-        },
-        {
-          id: "class-2",
-          name: "Web Development",
-          code: "CS301",
-          department: "Computer Science",
-          semester: 3,
-          teacher: { name: "Prof. Johnson", image: null },
-          _count: { enrollments: 38 },
-        },
-        {
-          id: "class-3",
-          name: "Database Systems",
-          code: "CS302",
-          department: "Computer Science",
-          semester: 3,
-          teacher: { name: "Dr. Williams", image: null },
-          _count: { enrollments: 42 },
-        },
-        {
-          id: "class-4",
-          name: "Operating Systems",
-          code: "CS303",
-          department: "Computer Science",
-          semester: 3,
-          teacher: { name: "Prof. Brown", image: null },
-          _count: { enrollments: 40 },
-        },
-      ],
-      notifications: [
-        {
-          id: "notif-1",
-          title: "New Assignment",
-          message: "Data Structures assignment due in 3 days",
-          createdAt: new Date().toISOString(),
-          read: false,
-        },
-        {
-          id: "notif-2",
-          title: "Exam Scheduled",
-          message: "Web Development midterm on Friday",
-          createdAt: new Date(Date.now() - 86400000).toISOString(),
-          read: false,
-        },
-      ],
-      announcements: [
-        {
-          id: "ann-1",
-          title: "Campus Event",
-          content: "Tech fest starting next week. Register now!",
-          class: { name: "General" },
-          teacher: { user: { name: "Admin" } },
-          createdAt: new Date().toISOString(),
-        },
-        {
-          id: "ann-2",
-          title: "Holiday Notice",
-          content: "University will be closed on Monday for maintenance.",
-          class: { name: "General" },
-          teacher: { user: { name: "Admin" } },
-          createdAt: new Date(Date.now() - 172800000).toISOString(),
-        },
-      ],
-    }
+      orderBy: { dueDate: "asc" },
+      take: 5,
+      include: {
+        class: { select: { name: true, subject: true } }
+      }
+    }) : [];
 
-    return NextResponse.json({ success: true, data: dashboardData })
+    // Get upcoming exams
+    const upcomingExams = enrolledClassIds.length > 0 ? await prisma.exam.findMany({
+      where: {
+        classId: { in: enrolledClassIds },
+        startTime: { gte: new Date() },
+        isActive: true,
+      },
+      orderBy: { startTime: "asc" },
+      take: 5,
+      include: {
+        class: { select: { name: true, subject: true } }
+      }
+    }) : [];
+
+    // Get notifications
+    const notifications = await prisma.notification.findMany({
+      where: { userId: session.id },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+    });
+
+    // Get announcements from enrolled classes
+    const announcements = enrolledClassIds.length > 0 ? await prisma.announcement.findMany({
+      where: {
+        OR: [
+          { classId: { in: enrolledClassIds } },
+          { isGlobal: true }
+        ]
+      },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      include: {
+        teacher: { include: { user: { select: { name: true } } } },
+        class: { select: { name: true } }
+      }
+    }) : await prisma.announcement.findMany({
+      where: { isGlobal: true },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      include: {
+        teacher: { include: { user: { select: { name: true } } } }
+      }
+    });
+
+    // Calculate stats
+    const totalClasses = student?.classEnrollments.length || 0;
+    const pendingSubmissions = student?.submissions.length || 0;
+    
+    // Calculate attendance rate
+    const totalAttendanceSessions = enrolledClassIds.length > 0 ? await prisma.attendanceSession.count({
+      where: { classId: { in: enrolledClassIds } }
+    }) : 0;
+    const attendedSessions = student?.attendances.length || 0;
+    const attendanceRate = totalAttendanceSessions > 0 
+      ? Math.round((attendedSessions / totalAttendanceSessions) * 100) 
+      : 0;
+
+    // Get performance data
+    const performance = await prisma.performance.findMany({
+      where: { studentId: student?.id },
+      orderBy: [{ year: "desc" }, { month: "desc" }],
+      take: 6,
+    });
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        student: {
+          id: student?.id,
+          name: session.name,
+          email: session.email,
+          enrollmentNo: student?.enrollmentNo,
+          department: student?.department,
+          semester: student?.semester,
+          section: student?.section,
+          batch: student?.batch,
+          phone: student?.phone,
+        },
+        stats: {
+          totalClasses,
+          pendingSubmissions,
+          upcomingExams: upcomingExams.length,
+          attendanceRate,
+        },
+        classes: student?.classEnrollments.map(e => ({
+          id: e.class.id,
+          name: e.class.name,
+          code: e.class.code,
+          subject: e.class.subject,
+          department: e.class.department,
+          teacherName: e.class.teacher.user.name,
+          studentCount: e.class._count.enrollments,
+          assignmentCount: e.class._count.assignments,
+          materialCount: e.class._count.materials,
+          joinedAt: e.joinedAt,
+        })) || [],
+        upcomingAssignments: upcomingAssignments.map(a => ({
+          id: a.id,
+          title: a.title,
+          dueDate: a.dueDate,
+          className: a.class.name,
+          subject: a.class.subject,
+          totalMarks: a.totalMarks,
+        })),
+        upcomingExams: upcomingExams.map(e => ({
+          id: e.id,
+          title: e.title,
+          type: e.type,
+          startTime: e.startTime,
+          duration: e.duration,
+          className: e.class.name,
+          subject: e.class.subject,
+        })),
+        notifications: notifications.map(n => ({
+          id: n.id,
+          title: n.title,
+          message: n.message,
+          type: n.type,
+          read: n.read,
+          createdAt: n.createdAt,
+        })),
+        announcements: announcements.map(a => ({
+          id: a.id,
+          title: a.title,
+          content: a.content,
+          priority: a.priority,
+          className: a.class?.name || "Global",
+          teacherName: a.teacher.user.name,
+          createdAt: a.createdAt,
+        })),
+        performance: performance.map(p => ({
+          month: p.month,
+          year: p.year,
+          attendanceRate: p.attendanceRate,
+          assignmentRate: p.assignmentRate,
+          examAverage: p.examAverage,
+          overallScore: p.overallScore,
+        })),
+      },
+    });
   } catch (error) {
-    console.error("Dashboard error:", error)
-    return NextResponse.json({ 
-      success: false, 
-      error: "Internal server error" 
-    }, { status: 500 })
+    console.error("Student dashboard error:", error);
+    return NextResponse.json(
+      { success: false, error: "Failed to load dashboard data" },
+      { status: 500 }
+    );
   }
 }

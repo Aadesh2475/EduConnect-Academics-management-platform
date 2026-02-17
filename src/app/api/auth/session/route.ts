@@ -1,40 +1,33 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server";
+import { getSession } from "@/lib/auth-utils";
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
-    const sessionToken = req.cookies.get("session_token")?.value
-    const userInfoCookie = req.cookies.get("user_info")?.value
+    const session = await getSession();
 
-    if (!sessionToken) {
-      return NextResponse.json({ 
-        success: false, 
-        data: null 
-      })
+    if (session) {
+      return NextResponse.json({
+        success: true,
+        data: {
+          id: session.id,
+          email: session.email,
+          name: session.name,
+          image: session.image,
+          role: session.role,
+          theme: session.theme,
+        },
+      });
     }
 
-    // Try to parse user info from cookie
-    if (userInfoCookie) {
-      try {
-        const userInfo = JSON.parse(userInfoCookie)
-        return NextResponse.json({ 
-          success: true, 
-          data: userInfo 
-        })
-      } catch {
-        // Invalid user info cookie
-      }
-    }
-
-    // Session exists but no user info - still valid session
-    return NextResponse.json({ 
-      success: true, 
-      data: null 
-    })
+    return NextResponse.json({
+      success: false,
+      data: null,
+    });
   } catch (error) {
-    console.error("Session error:", error)
-    return NextResponse.json({ 
-      success: false, 
-      data: null 
-    })
+    console.error("Session error:", error);
+    return NextResponse.json({
+      success: false,
+      data: null,
+    });
   }
 }

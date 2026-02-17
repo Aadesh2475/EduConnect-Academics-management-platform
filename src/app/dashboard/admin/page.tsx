@@ -7,482 +7,568 @@ import {
   GraduationCap,
   BookOpen,
   Activity,
-  TrendingUp,
-  TrendingDown,
-  AlertCircle,
-  CheckCircle,
-  Server,
-  Database,
+  Bell,
   Shield,
-  ArrowUpRight,
-  ArrowDownRight,
-  MoreHorizontal,
-  Eye,
-  Ban,
-  Trash2
+  TrendingUp,
+  Search,
+  MoreVertical,
+  UserPlus,
+  FolderOpen,
+  FileText,
+  HelpCircle,
+  MessageSquare,
+  AlertCircle,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Input } from "@/components/ui/input"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { SkeletonDashboard, SkeletonTable } from "@/components/ui/skeleton"
-import { getInitials, formatDate } from "@/lib/utils"
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell
-} from "recharts"
+import { SkeletonDashboard } from "@/components/ui/skeleton"
+import { getInitials, formatDate, cn } from "@/lib/utils"
+import Link from "next/link"
 
-const userGrowthData = [
-  { month: "Jan", students: 120, teachers: 15 },
-  { month: "Feb", students: 145, teachers: 18 },
-  { month: "Mar", students: 180, teachers: 22 },
-  { month: "Apr", students: 220, teachers: 28 },
-  { month: "May", students: 280, teachers: 35 },
-  { month: "Jun", students: 350, teachers: 42 },
-]
+interface DashboardData {
+  admin: {
+    id: string
+    name: string
+    email: string
+  }
+  stats: {
+    totalStudents: number
+    totalTeachers: number
+    totalClasses: number
+    totalAssignments: number
+    pendingEnrollments: number
+    openTickets: number
+    totalUsers: number
+  }
+  recentUsers: Array<{
+    id: string
+    name: string
+    email: string
+    role: string
+    createdAt: string
+  }>
+  recentClasses: Array<{
+    id: string
+    name: string
+    code: string
+    subject: string
+    department: string
+    teacherName: string
+    studentCount: number
+    createdAt: string
+  }>
+  usersByRole: Array<{
+    role: string
+    count: number
+  }>
+  recentTickets: Array<{
+    id: string
+    subject: string
+    category: string
+    status: string
+    priority: string
+    userName: string
+    userEmail: string
+    createdAt: string
+  }>
+  recentFeedback: Array<{
+    id: string
+    subject: string
+    message: string
+    type: string
+    rating: number | null
+    status: string
+    userName: string
+    createdAt: string
+  }>
+  notifications: Array<{
+    id: string
+    title: string
+    message: string
+    type: string
+    read: boolean
+    createdAt: string
+  }>
+  auditLogs: Array<{
+    id: string
+    action: string
+    entity: string
+    entityId: string | null
+    createdAt: string
+  }>
+}
 
-const activityData = [
-  { day: "Mon", logins: 450, actions: 1200 },
-  { day: "Tue", logins: 520, actions: 1400 },
-  { day: "Wed", logins: 480, actions: 1300 },
-  { day: "Thu", logins: 610, actions: 1600 },
-  { day: "Fri", logins: 580, actions: 1500 },
-  { day: "Sat", logins: 320, actions: 800 },
-  { day: "Sun", logins: 290, actions: 700 },
-]
-
-const roleDistribution = [
-  { name: "Students", value: 850, color: "#3b82f6" },
-  { name: "Teachers", value: 65, color: "#8b5cf6" },
-  { name: "Admins", value: 5, color: "#ef4444" },
-]
+// Empty state component
+function EmptyState({ 
+  icon: Icon, 
+  title, 
+  description 
+}: { 
+  icon: React.ComponentType<{ className?: string }>
+  title: string
+  description: string
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center py-12 text-center">
+      <div className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4">
+        <Icon className="w-8 h-8 text-gray-400 dark:text-gray-500" />
+      </div>
+      <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">{title}</h3>
+      <p className="text-gray-500 dark:text-gray-400 max-w-sm">{description}</p>
+    </div>
+  )
+}
 
 export default function AdminDashboard() {
   const [loading, setLoading] = useState(true)
-  const [userFilter, setUserFilter] = useState("all")
+  const [data, setData] = useState<DashboardData | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
-  const [stats, setStats] = useState({
-    totalStudents: 0,
-    totalTeachers: 0,
-    totalClasses: 0,
-    activeUsers: 0,
-    systemHealth: "healthy",
-  })
 
   useEffect(() => {
-    const loadData = async () => {
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-      setStats({
-        totalStudents: 850,
-        totalTeachers: 65,
-        totalClasses: 48,
-        activeUsers: 312,
-        systemHealth: "healthy",
-      })
-      setLoading(false)
+    const fetchDashboard = async () => {
+      try {
+        const res = await fetch("/api/admin/dashboard")
+        const result = await res.json()
+        
+        if (result.success) {
+          setData(result.data)
+        } else {
+          setError(result.error || "Failed to load dashboard")
+        }
+      } catch {
+        setError("Failed to connect to server")
+      } finally {
+        setLoading(false)
+      }
     }
-    loadData()
+
+    fetchDashboard()
   }, [])
 
-  if (loading) {
-    return <SkeletonDashboard />
+  if (loading) return <SkeletonDashboard />
+
+  if (error || !data) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Card className="w-full max-w-md dark:bg-gray-800 dark:border-gray-700">
+          <CardContent className="pt-6 text-center">
+            <div className="w-16 h-16 rounded-full bg-red-100 dark:bg-red-900/20 flex items-center justify-center mx-auto mb-4">
+              <AlertCircle className="w-8 h-8 text-red-500" />
+            </div>
+            <h3 className="text-lg font-medium mb-2 dark:text-white">Unable to Load Dashboard</h3>
+            <p className="text-gray-500 dark:text-gray-400 mb-4">{error || "Something went wrong"}</p>
+            <Button onClick={() => window.location.reload()}>Try Again</Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
-  const recentUsers = [
-    { id: 1, name: "John Doe", email: "john@example.com", role: "STUDENT", status: "active", joinedAt: new Date() },
-    { id: 2, name: "Jane Smith", email: "jane@example.com", role: "TEACHER", status: "active", joinedAt: new Date(Date.now() - 86400000) },
-    { id: 3, name: "Mike Johnson", email: "mike@example.com", role: "STUDENT", status: "inactive", joinedAt: new Date(Date.now() - 172800000) },
-    { id: 4, name: "Sarah Wilson", email: "sarah@example.com", role: "STUDENT", status: "active", joinedAt: new Date(Date.now() - 259200000) },
-    { id: 5, name: "Dr. Robert Chen", email: "robert@example.com", role: "TEACHER", status: "active", joinedAt: new Date(Date.now() - 345600000) },
-  ]
+  const { admin, stats, recentUsers, recentClasses, usersByRole, recentTickets, recentFeedback, notifications, auditLogs } = data
+
+  // Calculate total users for percentage
+  const totalUsers = usersByRole.reduce((sum, r) => sum + r.count, 0)
+
+  // Filter users by search
+  const filteredUsers = recentUsers.filter(user => 
+    user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    user.email.toLowerCase().includes(searchQuery.toLowerCase())
+  )
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
-          <p className="text-gray-600">Complete overview of the platform</p>
+      {/* Welcome Section */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl p-6 text-white"
+      >
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <Shield className="w-6 h-6" />
+              <span className="text-purple-200 text-sm">Admin Dashboard</span>
+            </div>
+            <h1 className="text-2xl font-bold mb-2">Welcome back, {admin.name}! 👋</h1>
+            <p className="text-purple-100">
+              {stats.totalUsers > 0 
+                ? `Managing ${stats.totalUsers} users across ${stats.totalClasses} classes.`
+                : "No users registered yet. The platform is ready for users."}
+            </p>
+          </div>
+          <div className="hidden md:flex items-center gap-4">
+            <div className="text-right">
+              <p className="text-sm text-purple-200">Total Users</p>
+              <p className="text-3xl font-bold">{stats.totalUsers}</p>
+            </div>
+            <div className="w-px h-12 bg-white/20" />
+            <div className="text-right">
+              <p className="text-sm text-purple-200">System Status</p>
+              <Badge className="bg-green-500 text-white mt-1">Healthy</Badge>
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Badge variant={stats.systemHealth === "healthy" ? "success" : "destructive"} className="gap-1">
-            <span className={`w-2 h-2 rounded-full ${stats.systemHealth === "healthy" ? "bg-green-500" : "bg-red-500"}`} />
-            System {stats.systemHealth}
-          </Badge>
-        </div>
-      </div>
+      </motion.div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-        >
-          <Card className="border-l-4 border-l-blue-500">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-500">Total Students</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.totalStudents}</p>
-                  <div className="flex items-center text-green-600 text-sm mt-1">
-                    <ArrowUpRight className="w-4 h-4" />
-                    <span>12% this month</span>
-                  </div>
-                </div>
-                <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center">
-                  <GraduationCap className="w-6 h-6 text-blue-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <Card className="border-l-4 border-l-purple-500">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-500">Total Teachers</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.totalTeachers}</p>
-                  <div className="flex items-center text-green-600 text-sm mt-1">
-                    <ArrowUpRight className="w-4 h-4" />
-                    <span>8% this month</span>
-                  </div>
-                </div>
-                <div className="w-12 h-12 rounded-lg bg-purple-100 flex items-center justify-center">
-                  <Users className="w-6 h-6 text-purple-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-        >
-          <Card className="border-l-4 border-l-green-500">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-500">Total Classes</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.totalClasses}</p>
-                  <div className="flex items-center text-green-600 text-sm mt-1">
-                    <ArrowUpRight className="w-4 h-4" />
-                    <span>5 new this week</span>
-                  </div>
-                </div>
-                <div className="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center">
-                  <BookOpen className="w-6 h-6 text-green-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-        >
-          <Card className="border-l-4 border-l-orange-500">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-500">Active Now</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.activeUsers}</p>
-                  <div className="flex items-center text-gray-500 text-sm mt-1">
-                    <Activity className="w-4 h-4 mr-1" />
-                    <span>Online users</span>
-                  </div>
-                </div>
-                <div className="w-12 h-12 rounded-lg bg-orange-100 flex items-center justify-center">
-                  <Activity className="w-6 h-6 text-orange-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-      </div>
-
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-          className="lg:col-span-2"
-        >
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg font-semibold">User Growth</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={userGrowthData}>
-                    <defs>
-                      <linearGradient id="colorStudents" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="colorTeachers" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                    <XAxis dataKey="month" stroke="#9ca3af" fontSize={12} />
-                    <YAxis stroke="#9ca3af" fontSize={12} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "white",
-                        border: "1px solid #e5e7eb",
-                        borderRadius: "8px",
-                      }}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="students"
-                      stroke="#3b82f6"
-                      strokeWidth={2}
-                      fillOpacity={1}
-                      fill="url(#colorStudents)"
-                      name="Students"
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="teachers"
-                      stroke="#8b5cf6"
-                      strokeWidth={2}
-                      fillOpacity={1}
-                      fill="url(#colorTeachers)"
-                      name="Teachers"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6 }}
-        >
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg font-semibold">User Distribution</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-52">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={roleDistribution}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={50}
-                      outerRadius={80}
-                      dataKey="value"
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                      labelLine={false}
-                    >
-                      {roleDistribution.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="flex justify-center gap-4 mt-4">
-                {roleDistribution.map((item, index) => (
-                  <div key={index} className="flex items-center gap-2 text-sm">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
-                    <span className="text-gray-600">{item.name}: {item.value}</span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-      </div>
-
-      {/* User Management Table */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.7 }}
-      >
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-lg font-semibold">Recent Users</CardTitle>
-            <div className="flex items-center gap-3">
-              <Input
-                placeholder="Search users..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-48 h-9"
-              />
-              <Select value={userFilter} onValueChange={setUserFilter}>
-                <SelectTrigger className="w-32 h-9">
-                  <SelectValue placeholder="Filter" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Users</SelectItem>
-                  <SelectItem value="students">Students</SelectItem>
-                  <SelectItem value="teachers">Teachers</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="inactive">Inactive</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-100">
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">User</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Role</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Status</th>
-                    <th className="text-left py-3 px-4 text-sm font-medium text-gray-500">Joined</th>
-                    <th className="text-right py-3 px-4 text-sm font-medium text-gray-500">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentUsers.map((user) => (
-                    <tr key={user.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-9 w-9">
-                            <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <p className="font-medium text-gray-900 text-sm">{user.name}</p>
-                            <p className="text-xs text-gray-500">{user.email}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-3 px-4">
-                        <Badge variant={user.role === "TEACHER" ? "purple" : "default"}>
-                          {user.role}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-4">
-                        <Badge variant={user.status === "active" ? "success" : "secondary"}>
-                          {user.status}
-                        </Badge>
-                      </td>
-                      <td className="py-3 px-4 text-sm text-gray-500">
-                        {formatDate(user.joinedAt)}
-                      </td>
-                      <td className="py-3 px-4">
-                        <div className="flex justify-end">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreHorizontal className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem>
-                                <Eye className="mr-2 h-4 w-4" />
-                                View Details
-                              </DropdownMenuItem>
-                              <DropdownMenuItem>
-                                <Ban className="mr-2 h-4 w-4" />
-                                {user.status === "active" ? "Suspend" : "Activate"}
-                              </DropdownMenuItem>
-                              <DropdownMenuItem className="text-red-600">
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete User
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
-
-      {/* System Health */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.8 }}
-      >
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg font-semibold">System Health</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {[
-                { name: "Database", status: "healthy", icon: Database, metric: "99.9%" },
-                { name: "API Server", status: "healthy", icon: Server, metric: "45ms" },
-                { name: "Auth Service", status: "healthy", icon: Shield, metric: "100%" },
-                { name: "Cache", status: "healthy", icon: Activity, metric: "85% hit" },
-              ].map((service, index) => (
-                <div
-                  key={index}
-                  className="flex items-center justify-between p-4 rounded-lg bg-gray-50"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-white shadow-sm flex items-center justify-center">
-                      <service.icon className="w-5 h-5 text-gray-600" />
-                    </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: "Total Students", value: stats.totalStudents, icon: GraduationCap, color: "blue", href: "/dashboard/admin/users?role=STUDENT" },
+          { label: "Total Teachers", value: stats.totalTeachers, icon: Users, color: "emerald", href: "/dashboard/admin/users?role=TEACHER" },
+          { label: "Active Classes", value: stats.totalClasses, icon: BookOpen, color: "purple", href: "/dashboard/admin/classes" },
+          { label: "Open Tickets", value: stats.openTickets, icon: HelpCircle, color: "orange", href: "/dashboard/admin/tickets" },
+        ].map((stat, index) => (
+          <motion.div
+            key={stat.label}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: index * 0.1 }}
+          >
+            <Link href={stat.href}>
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer dark:bg-gray-800 dark:border-gray-700">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-medium text-sm text-gray-900">{service.name}</p>
-                      <p className="text-xs text-gray-500">{service.metric}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">{stat.label}</p>
+                      <p className="text-2xl font-bold mt-1 dark:text-white">{stat.value}</p>
+                    </div>
+                    <div className={cn(
+                      "w-12 h-12 rounded-xl flex items-center justify-center",
+                      stat.color === "blue" && "bg-blue-100 dark:bg-blue-900/30",
+                      stat.color === "emerald" && "bg-emerald-100 dark:bg-emerald-900/30",
+                      stat.color === "purple" && "bg-purple-100 dark:bg-purple-900/30",
+                      stat.color === "orange" && "bg-orange-100 dark:bg-orange-900/30",
+                    )}>
+                      <stat.icon className={cn(
+                        "w-6 h-6",
+                        stat.color === "blue" && "text-blue-600 dark:text-blue-400",
+                        stat.color === "emerald" && "text-emerald-600 dark:text-emerald-400",
+                        stat.color === "purple" && "text-purple-600 dark:text-purple-400",
+                        stat.color === "orange" && "text-orange-600 dark:text-orange-400",
+                      )} />
                     </div>
                   </div>
-                  <div className={`w-3 h-3 rounded-full ${service.status === "healthy" ? "bg-green-500" : "bg-red-500"}`} />
+                </CardContent>
+              </Card>
+            </Link>
+          </motion.div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Users Table */}
+        <div className="lg:col-span-2">
+          <Card className="dark:bg-gray-800 dark:border-gray-700">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="dark:text-white">Recent Users</CardTitle>
+              <div className="relative w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Input 
+                  placeholder="Search users..." 
+                  className="pl-9 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+            </CardHeader>
+            <CardContent>
+              {recentUsers.length === 0 ? (
+                <EmptyState
+                  icon={UserPlus}
+                  title="No Users Yet"
+                  description="No users have registered on the platform yet. Share the registration link to invite users."
+                />
+              ) : filteredUsers.length === 0 ? (
+                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                  <Search className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No users match your search</p>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b dark:border-gray-700">
+                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">User</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Role</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Joined</th>
+                        <th className="text-right py-3 px-4 text-sm font-medium text-gray-500 dark:text-gray-400">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredUsers.map((user) => (
+                        <tr key={user.id} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-3">
+                              <Avatar className="h-8 w-8">
+                                <AvatarFallback className={cn(
+                                  user.role === "ADMIN" && "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
+                                  user.role === "TEACHER" && "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300",
+                                  user.role === "STUDENT" && "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
+                                )}>
+                                  {getInitials(user.name)}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <p className="font-medium text-sm dark:text-white">{user.name}</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">{user.email}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <Badge variant={
+                              user.role === "ADMIN" ? "destructive" : 
+                              user.role === "TEACHER" ? "default" : 
+                              "secondary"
+                            } className={cn(
+                              user.role === "TEACHER" && "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+                            )}>
+                              {user.role}
+                            </Badge>
+                          </td>
+                          <td className="py-3 px-4 text-sm text-gray-500 dark:text-gray-400">
+                            {formatDate(user.createdAt)}
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <Button variant="ghost" size="icon" className="dark:text-gray-300 dark:hover:text-white">
+                              <MoreVertical className="w-4 h-4" />
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Recent Classes */}
+          <Card className="mt-6 dark:bg-gray-800 dark:border-gray-700">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="dark:text-white">Recent Classes</CardTitle>
+              <Link href="/dashboard/admin/classes">
+                <Button variant="ghost" size="sm" className="dark:text-gray-300 dark:hover:text-white">
+                  View All
+                </Button>
+              </Link>
+            </CardHeader>
+            <CardContent>
+              {recentClasses.length === 0 ? (
+                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                  <BookOpen className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                  <p className="font-medium">No Classes Created</p>
+                  <p className="text-sm mt-1">Classes will appear here once teachers create them.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {recentClasses.slice(0, 5).map((cls) => (
+                    <div key={cls.id} className="flex items-center justify-between p-3 rounded-lg border dark:border-gray-700">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-500 flex items-center justify-center text-white font-bold text-sm">
+                          {cls.code.substring(0, 2)}
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-sm dark:text-white">{cls.name}</h4>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {cls.teacherName} • {cls.department}
+                          </p>
+                        </div>
+                      </div>
+                      <Badge variant="secondary" className="dark:bg-gray-700 dark:text-gray-300">
+                        {cls.studentCount} students
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Sidebar */}
+        <div className="space-y-6">
+          {/* Role Distribution */}
+          <Card className="dark:bg-gray-800 dark:border-gray-700">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base dark:text-white">User Distribution</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {usersByRole.length === 0 ? (
+                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                  <TrendingUp className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No data available</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {usersByRole.map((item) => {
+                    const percentage = totalUsers > 0 ? Math.round((item.count / totalUsers) * 100) : 0
+                    return (
+                      <div key={item.role}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm dark:text-gray-300">{item.role}</span>
+                          <span className="text-sm font-medium dark:text-white">{item.count} ({percentage}%)</span>
+                        </div>
+                        <div className="w-full h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                          <div 
+                            className={cn(
+                              "h-full rounded-full transition-all",
+                              item.role === "STUDENT" && "bg-blue-500",
+                              item.role === "TEACHER" && "bg-emerald-500",
+                              item.role === "ADMIN" && "bg-purple-500",
+                            )}
+                            style={{ width: `${percentage}%` }}
+                          />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Support Tickets */}
+          <Card className="dark:bg-gray-800 dark:border-gray-700">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-base dark:text-white">Support Tickets</CardTitle>
+              <Badge variant="secondary" className="dark:bg-gray-700 dark:text-gray-300">{stats.openTickets}</Badge>
+            </CardHeader>
+            <CardContent>
+              {recentTickets.length === 0 ? (
+                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                  <HelpCircle className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No support tickets</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {recentTickets.slice(0, 3).map((ticket) => (
+                    <div key={ticket.id} className="p-3 rounded-lg border dark:border-gray-700">
+                      <div className="flex items-center justify-between mb-1">
+                        <Badge variant={
+                          ticket.priority === "HIGH" ? "destructive" :
+                          ticket.priority === "MEDIUM" ? "default" :
+                          "secondary"
+                        } className="text-xs">
+                          {ticket.priority}
+                        </Badge>
+                        <Badge variant={
+                          ticket.status === "OPEN" ? "default" :
+                          ticket.status === "RESOLVED" ? "outline" :
+                          "secondary"
+                        } className="text-xs">
+                          {ticket.status}
+                        </Badge>
+                      </div>
+                      <h4 className="font-medium text-sm dark:text-white mt-2">{ticket.subject}</h4>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        {ticket.userName} • {formatDate(ticket.createdAt)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Recent Feedback */}
+          <Card className="dark:bg-gray-800 dark:border-gray-700">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base dark:text-white">Recent Feedback</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {recentFeedback.length === 0 ? (
+                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                  <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No feedback received</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {recentFeedback.slice(0, 3).map((feedback) => (
+                    <div key={feedback.id} className="border-l-2 border-purple-500 pl-3">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-medium text-sm dark:text-white">{feedback.subject}</h4>
+                        <Badge variant="outline" className="text-xs dark:border-gray-600 dark:text-gray-300">
+                          {feedback.type}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">{feedback.message}</p>
+                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                        {feedback.userName} • {formatDate(feedback.createdAt)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Notifications */}
+          <Card className="dark:bg-gray-800 dark:border-gray-700">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-base dark:text-white">Notifications</CardTitle>
+              <Badge variant="secondary" className="dark:bg-gray-700 dark:text-gray-300">
+                {notifications.filter(n => !n.read).length}
+              </Badge>
+            </CardHeader>
+            <CardContent>
+              {notifications.length === 0 ? (
+                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                  <Bell className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No new notifications</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {notifications.slice(0, 5).map((notif) => (
+                    <div key={notif.id} className="flex items-start gap-3 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                      <div className={cn(
+                        "w-2 h-2 rounded-full mt-2",
+                        notif.read ? "bg-gray-300 dark:bg-gray-600" : "bg-purple-500"
+                      )} />
+                      <div>
+                        <p className="text-sm font-medium dark:text-white">{notif.title}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{notif.message}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Audit Log */}
+          <Card className="dark:bg-gray-800 dark:border-gray-700">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base dark:text-white">Recent Activity</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {auditLogs.length === 0 ? (
+                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                  <FolderOpen className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No recent activity</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {auditLogs.slice(0, 5).map((log) => (
+                    <div key={log.id} className="flex items-start gap-3">
+                      <div className="w-2 h-2 rounded-full bg-purple-500 mt-2" />
+                      <div>
+                        <p className="text-sm dark:text-white">{log.action}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {log.entity} • {formatDate(log.createdAt)}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   )
 }

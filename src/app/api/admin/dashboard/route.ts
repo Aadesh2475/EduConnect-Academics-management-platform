@@ -1,97 +1,196 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server";
+import { getSession } from "@/lib/auth-utils";
+import prisma from "@/lib/prisma";
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
-    const userInfoCookie = req.cookies.get("user_info")?.value
-    const sessionToken = req.cookies.get("session_token")?.value
+    const session = await getSession();
 
-    if (!sessionToken) {
-      return NextResponse.json({ 
-        success: false, 
-        error: "Unauthorized" 
-      }, { status: 401 })
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 }
+      );
     }
 
-    let user = { id: "demo", name: "Demo Admin", email: "admin@demo.com", role: "ADMIN" }
-    if (userInfoCookie) {
-      try {
-        user = JSON.parse(userInfoCookie)
-      } catch {}
+    if (session.role !== "ADMIN") {
+      return NextResponse.json(
+        { success: false, error: "Forbidden - Admin access only" },
+        { status: 403 }
+      );
     }
 
-    // Return demo dashboard data
-    const dashboardData = {
-      admin: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-      },
-      stats: {
-        totalStudents: 1250,
-        totalTeachers: 85,
-        totalClasses: 120,
-        activeUsers: 892,
-        pendingApprovals: 15,
-        systemHealth: 98,
-      },
-      userGrowth: [
-        { month: "Jan", students: 980, teachers: 72 },
-        { month: "Feb", students: 1020, teachers: 75 },
-        { month: "Mar", students: 1080, teachers: 78 },
-        { month: "Apr", students: 1150, teachers: 80 },
-        { month: "May", students: 1200, teachers: 83 },
-        { month: "Jun", students: 1250, teachers: 85 },
-      ],
-      recentActivity: [
-        { id: "act-1", type: "user_registered", user: "John Doe", role: "STUDENT", timestamp: new Date().toISOString() },
-        { id: "act-2", type: "class_created", user: "Prof. Smith", className: "Advanced ML", timestamp: new Date(Date.now() - 3600000).toISOString() },
-        { id: "act-3", type: "user_registered", user: "Jane Wilson", role: "TEACHER", timestamp: new Date(Date.now() - 7200000).toISOString() },
-        { id: "act-4", type: "exam_created", user: "Dr. Brown", examTitle: "Final Exam - DS", timestamp: new Date(Date.now() - 10800000).toISOString() },
-        { id: "act-5", type: "user_suspended", user: "Bob Smith", reason: "Policy violation", timestamp: new Date(Date.now() - 14400000).toISOString() },
-      ],
-      recentUsers: [
-        { id: "user-1", name: "Alice Johnson", email: "alice@example.com", role: "STUDENT", status: "active", createdAt: new Date().toISOString() },
-        { id: "user-2", name: "Prof. Michael", email: "michael@example.com", role: "TEACHER", status: "active", createdAt: new Date(Date.now() - 86400000).toISOString() },
-        { id: "user-3", name: "Sarah Williams", email: "sarah@example.com", role: "STUDENT", status: "active", createdAt: new Date(Date.now() - 172800000).toISOString() },
-        { id: "user-4", name: "Dr. Robert", email: "robert@example.com", role: "TEACHER", status: "pending", createdAt: new Date(Date.now() - 259200000).toISOString() },
-        { id: "user-5", name: "Tom Brown", email: "tom@example.com", role: "STUDENT", status: "suspended", createdAt: new Date(Date.now() - 345600000).toISOString() },
-      ],
-      roleDistribution: [
-        { role: "Students", count: 1250, percentage: 89 },
-        { role: "Teachers", count: 85, percentage: 6 },
-        { role: "Admins", count: 12, percentage: 1 },
-        { role: "Others", count: 53, percentage: 4 },
-      ],
-      systemStatus: {
-        database: { status: "healthy", latency: "12ms" },
-        api: { status: "healthy", uptime: "99.9%" },
-        auth: { status: "healthy", sessions: 892 },
-        cache: { status: "healthy", hitRate: "94%" },
-      },
-      notifications: [
-        {
-          id: "notif-1",
-          title: "System Alert",
-          message: "Database backup completed successfully",
-          createdAt: new Date().toISOString(),
-          read: false,
+    // Get overall stats
+    const [
+      totalStudents,
+      totalTeachers,
+      totalClasses,
+      totalAssignments,
+      pendingEnrollments,
+      openTickets,
+      recentUsers,
+      recentClasses,
+    ] = await Promise.all([
+      prisma.student.count(),
+      prisma.teacher.count(),
+      prisma.class.count({ where: { isActive: true } }),
+      prisma.assignment.count({ where: { isActive: true } }),
+      prisma.classEnrollment.count({ where: { status: "PENDING" } }),
+      prisma.helpTicket.count({ where: { status: { in: ["OPEN", "IN_PROGRESS"] } } }),
+      prisma.user.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 10,
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          createdAt: true,
         },
-        {
-          id: "notif-2",
-          title: "New User Reports",
-          message: "5 new user reports need review",
-          createdAt: new Date(Date.now() - 86400000).toISOString(),
-          read: false,
-        },
-      ],
-    }
+      }),
+      prisma.class.findMany({
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        include: {
+          teacher: {
+            include: { user: { select: { name: true } } }
+          },
+          _count: {
+            select: { enrollments: { where: { status: "APPROVED" } } }
+          }
+        }
+      }),
+    ]);
 
-    return NextResponse.json({ success: true, data: dashboardData })
+    // Get user growth data (last 6 months)
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+    const usersByMonth = await prisma.user.groupBy({
+      by: ['createdAt'],
+      where: {
+        createdAt: { gte: sixMonthsAgo }
+      },
+      _count: true,
+    });
+
+    // Get user distribution by role
+    const usersByRole = await prisma.user.groupBy({
+      by: ['role'],
+      _count: true,
+    });
+
+    // Get recent help tickets
+    const recentTickets = await prisma.helpTicket.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      include: {
+        user: { select: { name: true, email: true } }
+      }
+    });
+
+    // Get recent feedback
+    const recentFeedback = await prisma.feedback.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      include: {
+        user: { select: { name: true, email: true } }
+      }
+    });
+
+    // Get notifications
+    const notifications = await prisma.notification.findMany({
+      where: { userId: session.id },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+    });
+
+    // Get recent audit logs
+    const auditLogs = await prisma.auditLog.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 10,
+    });
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        admin: {
+          id: session.id,
+          name: session.name,
+          email: session.email,
+        },
+        stats: {
+          totalStudents,
+          totalTeachers,
+          totalClasses,
+          totalAssignments,
+          pendingEnrollments,
+          openTickets,
+          totalUsers: totalStudents + totalTeachers + 1, // +1 for admin
+        },
+        recentUsers: recentUsers.map(u => ({
+          id: u.id,
+          name: u.name,
+          email: u.email,
+          role: u.role,
+          createdAt: u.createdAt,
+        })),
+        recentClasses: recentClasses.map(c => ({
+          id: c.id,
+          name: c.name,
+          code: c.code,
+          subject: c.subject,
+          department: c.department,
+          teacherName: c.teacher.user.name,
+          studentCount: c._count.enrollments,
+          createdAt: c.createdAt,
+        })),
+        usersByRole: usersByRole.map(r => ({
+          role: r.role,
+          count: r._count,
+        })),
+        recentTickets: recentTickets.map(t => ({
+          id: t.id,
+          subject: t.subject,
+          category: t.category,
+          status: t.status,
+          priority: t.priority,
+          userName: t.user.name,
+          userEmail: t.user.email,
+          createdAt: t.createdAt,
+        })),
+        recentFeedback: recentFeedback.map(f => ({
+          id: f.id,
+          subject: f.subject,
+          message: f.message,
+          type: f.type,
+          rating: f.rating,
+          status: f.status,
+          userName: f.user?.name || "Anonymous",
+          createdAt: f.createdAt,
+        })),
+        notifications: notifications.map(n => ({
+          id: n.id,
+          title: n.title,
+          message: n.message,
+          type: n.type,
+          read: n.read,
+          createdAt: n.createdAt,
+        })),
+        auditLogs: auditLogs.map(l => ({
+          id: l.id,
+          action: l.action,
+          entity: l.entity,
+          entityId: l.entityId,
+          createdAt: l.createdAt,
+        })),
+      },
+    });
   } catch (error) {
-    console.error("Dashboard error:", error)
-    return NextResponse.json({ 
-      success: false, 
-      error: "Internal server error" 
-    }, { status: 500 })
+    console.error("Admin dashboard error:", error);
+    return NextResponse.json(
+      { success: false, error: "Failed to load dashboard data" },
+      { status: 500 }
+    );
   }
 }

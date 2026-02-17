@@ -1,169 +1,221 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server";
+import { getSession } from "@/lib/auth-utils";
+import prisma from "@/lib/prisma";
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
-    const userInfoCookie = req.cookies.get("user_info")?.value
-    const sessionToken = req.cookies.get("session_token")?.value
+    const session = await getSession();
 
-    if (!sessionToken) {
-      return NextResponse.json({ 
-        success: false, 
-        error: "Unauthorized" 
-      }, { status: 401 })
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 401 }
+      );
     }
 
-    let user = { id: "demo", name: "Demo Teacher", email: "teacher@demo.com", role: "TEACHER" }
-    if (userInfoCookie) {
-      try {
-        user = JSON.parse(userInfoCookie)
-      } catch {}
+    if (session.role !== "TEACHER") {
+      return NextResponse.json(
+        { success: false, error: "Forbidden - Teacher access only" },
+        { status: 403 }
+      );
     }
 
-    // Return demo dashboard data
-    const dashboardData = {
-      teacher: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        avatar: null,
-        department: "Computer Science",
-        subject: "Programming",
-        university: "Demo University",
+    // Get teacher profile with classes
+    const teacher = await prisma.teacher.findUnique({
+      where: { userId: session.id },
+      include: {
+        classes: {
+          where: { isActive: true },
+          include: {
+            _count: {
+              select: {
+                enrollments: { where: { status: "APPROVED" } },
+                assignments: true,
+                exams: true,
+                materials: true,
+              }
+            },
+            enrollments: {
+              where: { status: "APPROVED" },
+              take: 5,
+              include: {
+                student: {
+                  include: { user: { select: { name: true, email: true, image: true } } }
+                }
+              }
+            }
+          }
+        },
+        announcements: {
+          orderBy: { createdAt: "desc" },
+          take: 5,
+        }
+      }
+    });
+
+    if (!teacher) {
+      return NextResponse.json({
+        success: true,
+        data: {
+          teacher: {
+            id: null,
+            name: session.name,
+            email: session.email,
+            department: null,
+            subject: null,
+            university: null,
+          },
+          stats: {
+            totalClasses: 0,
+            totalStudents: 0,
+            pendingSubmissions: 0,
+            upcomingExams: 0,
+          },
+          classes: [],
+          recentSubmissions: [],
+          upcomingExams: [],
+          announcements: [],
+          notifications: [],
+        },
+      });
+    }
+
+    const classIds = teacher.classes.map(c => c.id);
+
+    // Get pending submissions count
+    const pendingSubmissions = classIds.length > 0 ? await prisma.submission.count({
+      where: {
+        assignment: { classId: { in: classIds } },
+        status: { in: ["SUBMITTED", "PENDING"] },
+      }
+    }) : 0;
+
+    // Get recent submissions
+    const recentSubmissions = classIds.length > 0 ? await prisma.submission.findMany({
+      where: {
+        assignment: { classId: { in: classIds } },
+        status: { in: ["SUBMITTED", "PENDING"] },
       },
-      stats: {
-        totalStudents: 125,
-        totalClasses: 4,
-        pendingJoinRequests: 5,
-        assignmentsToGrade: 12,
-      },
-      classes: [
-        {
-          id: "class-1",
-          name: "Data Structures",
-          code: "CS201",
-          department: "Computer Science",
-          semester: 3,
-          isActive: true,
-          _count: { 
-            enrollments: 45,
-            assignments: 8,
-            exams: 3,
-            materials: 15,
-          },
-          pendingEnrollments: ["req-1", "req-2"],
-        },
-        {
-          id: "class-2",
-          name: "Algorithms",
-          code: "CS301",
-          department: "Computer Science",
-          semester: 4,
-          isActive: true,
-          _count: { 
-            enrollments: 38,
-            assignments: 6,
-            exams: 2,
-            materials: 12,
-          },
-          pendingEnrollments: ["req-3"],
-        },
-        {
-          id: "class-3",
-          name: "Advanced Programming",
-          code: "CS401",
-          department: "Computer Science",
-          semester: 5,
-          isActive: true,
-          _count: { 
-            enrollments: 32,
-            assignments: 10,
-            exams: 4,
-            materials: 18,
-          },
-          pendingEnrollments: [],
-        },
-        {
-          id: "class-4",
-          name: "Software Engineering",
-          code: "CS402",
-          department: "Computer Science",
-          semester: 6,
-          isActive: false,
-          _count: { 
-            enrollments: 10,
-            assignments: 5,
-            exams: 2,
-            materials: 8,
-          },
-          pendingEnrollments: ["req-4", "req-5"],
-        },
-      ],
-      recentSubmissions: [
-        {
-          id: "sub-1",
-          student: { name: "John Doe", email: "john@example.com" },
-          assignment: { title: "Binary Trees Implementation" },
-          submittedAt: new Date().toISOString(),
-          status: "SUBMITTED",
-          marks: null,
-        },
-        {
-          id: "sub-2",
-          student: { name: "Jane Smith", email: "jane@example.com" },
-          assignment: { title: "Graph Algorithms" },
-          submittedAt: new Date(Date.now() - 3600000).toISOString(),
-          status: "SUBMITTED",
-          marks: null,
-        },
-        {
-          id: "sub-3",
-          student: { name: "Bob Wilson", email: "bob@example.com" },
-          assignment: { title: "Dynamic Programming" },
-          submittedAt: new Date(Date.now() - 7200000).toISOString(),
-          status: "GRADED",
-          marks: 85,
-        },
-      ],
-      upcomingExams: [
-        {
-          id: "exam-1",
-          title: "Midterm - Data Structures",
-          class: { name: "Data Structures" },
-          startTime: new Date(Date.now() + 172800000).toISOString(),
-          duration: 120,
-        },
-        {
-          id: "exam-2",
-          title: "Quiz - Algorithms",
-          class: { name: "Algorithms" },
-          startTime: new Date(Date.now() + 432000000).toISOString(),
-          duration: 60,
-        },
-      ],
-      notifications: [
-        {
-          id: "notif-1",
-          title: "New Submission",
-          message: "John Doe submitted assignment",
-          createdAt: new Date().toISOString(),
-          read: false,
-        },
-        {
-          id: "notif-2",
-          title: "Join Request",
-          message: "3 new students want to join CS201",
-          createdAt: new Date(Date.now() - 86400000).toISOString(),
-          read: false,
-        },
-      ],
-    }
+      orderBy: { submittedAt: "desc" },
+      take: 10,
+      include: {
+        assignment: { select: { title: true, totalMarks: true } },
+        student: {
+          include: { user: { select: { name: true, email: true } } }
+        }
+      }
+    }) : [];
 
-    return NextResponse.json({ success: true, data: dashboardData })
+    // Get upcoming exams
+    const upcomingExams = classIds.length > 0 ? await prisma.exam.findMany({
+      where: {
+        classId: { in: classIds },
+        startTime: { gte: new Date() },
+        isActive: true,
+      },
+      orderBy: { startTime: "asc" },
+      take: 5,
+      include: {
+        class: { select: { name: true, subject: true } },
+        _count: { select: { attempts: true } }
+      }
+    }) : [];
+
+    // Get notifications
+    const notifications = await prisma.notification.findMany({
+      where: { userId: session.id },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+    });
+
+    // Calculate total students
+    const totalStudents = teacher.classes.reduce(
+      (sum, c) => sum + c._count.enrollments, 0
+    );
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        teacher: {
+          id: teacher.id,
+          name: session.name,
+          email: session.email,
+          employeeId: teacher.employeeId,
+          department: teacher.department,
+          subject: teacher.subject,
+          university: teacher.university,
+          phone: teacher.phone,
+          qualification: teacher.qualification,
+          experience: teacher.experience,
+        },
+        stats: {
+          totalClasses: teacher.classes.length,
+          totalStudents,
+          pendingSubmissions,
+          upcomingExams: upcomingExams.length,
+        },
+        classes: teacher.classes.map(c => ({
+          id: c.id,
+          name: c.name,
+          code: c.code,
+          subject: c.subject,
+          department: c.department,
+          semester: c.semester,
+          studentCount: c._count.enrollments,
+          assignmentCount: c._count.assignments,
+          examCount: c._count.exams,
+          materialCount: c._count.materials,
+          recentStudents: c.enrollments.map(e => ({
+            id: e.student.id,
+            name: e.student.user.name,
+            email: e.student.user.email,
+            image: e.student.user.image,
+          })),
+        })),
+        recentSubmissions: recentSubmissions.map(s => ({
+          id: s.id,
+          assignmentTitle: s.assignment.title,
+          studentName: s.student.user.name,
+          studentEmail: s.student.user.email,
+          status: s.status,
+          submittedAt: s.submittedAt,
+          marks: s.marks,
+          totalMarks: s.assignment.totalMarks,
+        })),
+        upcomingExams: upcomingExams.map(e => ({
+          id: e.id,
+          title: e.title,
+          type: e.type,
+          startTime: e.startTime,
+          endTime: e.endTime,
+          duration: e.duration,
+          className: e.class.name,
+          subject: e.class.subject,
+          attemptCount: e._count.attempts,
+        })),
+        announcements: teacher.announcements.map(a => ({
+          id: a.id,
+          title: a.title,
+          content: a.content,
+          priority: a.priority,
+          isGlobal: a.isGlobal,
+          createdAt: a.createdAt,
+        })),
+        notifications: notifications.map(n => ({
+          id: n.id,
+          title: n.title,
+          message: n.message,
+          type: n.type,
+          read: n.read,
+          createdAt: n.createdAt,
+        })),
+      },
+    });
   } catch (error) {
-    console.error("Dashboard error:", error)
-    return NextResponse.json({ 
-      success: false, 
-      error: "Internal server error" 
-    }, { status: 500 })
+    console.error("Teacher dashboard error:", error);
+    return NextResponse.json(
+      { success: false, error: "Failed to load dashboard data" },
+      { status: 500 }
+    );
   }
 }

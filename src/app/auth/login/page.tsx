@@ -13,10 +13,8 @@ import {
   Lock,
   Eye,
   EyeOff,
-  Github,
   ArrowLeft,
   Loader2,
-  Info
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -40,7 +38,6 @@ export default function LoginPage() {
   const {
     register,
     handleSubmit,
-    setValue,
     formState: { errors },
   } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -49,25 +46,22 @@ export default function LoginPage() {
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true)
     try {
-      const result = await signIn.email({
-        email: data.email,
-        password: data.password,
-      })
+      const result = await signIn(data.email, data.password)
       
-      if (result.error) {
+      if (!result.success || result.error) {
         toast({
           title: "Login Failed",
-          description: result.error.message || "Invalid credentials",
+          description: result.error || "Invalid credentials",
           variant: "destructive",
         })
-      } else if (result.data) {
+      } else if (result.user) {
         toast({
           title: "Welcome back!",
           description: "Login successful",
         })
         
         // Get user role and redirect to appropriate dashboard
-        const userRole = result.data.user?.role || "STUDENT"
+        const userRole = result.user.role || "STUDENT"
         const dashboardPath = getDashboardPath(userRole)
         router.push(dashboardPath)
         router.refresh()
@@ -84,24 +78,13 @@ export default function LoginPage() {
     }
   }
 
-  // Demo login helper
-  const fillDemoCredentials = (role: "student" | "teacher" | "admin") => {
-    const credentials = {
-      student: { email: "student@demo.com", password: "password123" },
-      teacher: { email: "teacher@demo.com", password: "password123" },
-      admin: { email: "admin@demo.com", password: "password123" },
-    }
-    setValue("email", credentials[role].email)
-    setValue("password", credentials[role].password)
-  }
-
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
       <div className="w-full max-w-md">
         {/* Back to Home */}
         <Link 
           href="/" 
-          className="inline-flex items-center text-gray-600 hover:text-blue-600 mb-6 transition-colors"
+          className="inline-flex items-center text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 mb-6 transition-colors"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Home
@@ -112,7 +95,7 @@ export default function LoginPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <Card className="shadow-xl">
+          <Card className="shadow-xl dark:bg-gray-800 dark:border-gray-700">
             <CardHeader className="text-center pb-2">
               {/* Logo */}
               <div className="flex justify-center mb-4">
@@ -120,56 +103,22 @@ export default function LoginPage() {
                   <GraduationCap className="w-8 h-8 text-white" />
                 </div>
               </div>
-              <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
-              <CardDescription>Sign in to continue to EduConnect</CardDescription>
+              <CardTitle className="text-2xl font-bold dark:text-white">Welcome Back</CardTitle>
+              <CardDescription className="dark:text-gray-400">Sign in to continue to EduConnect</CardDescription>
             </CardHeader>
             
             <CardContent className="pt-6">
-              {/* Demo Credentials Info */}
-              <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="flex items-start gap-2">
-                  <Info className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
-                  <div className="text-sm">
-                    <p className="font-medium text-blue-800 mb-2">Demo Credentials:</p>
-                    <div className="space-y-1">
-                      <button 
-                        type="button"
-                        onClick={() => fillDemoCredentials("student")}
-                        className="block text-blue-600 hover:text-blue-800 hover:underline"
-                      >
-                        Student: student@demo.com
-                      </button>
-                      <button 
-                        type="button"
-                        onClick={() => fillDemoCredentials("teacher")}
-                        className="block text-blue-600 hover:text-blue-800 hover:underline"
-                      >
-                        Teacher: teacher@demo.com
-                      </button>
-                      <button 
-                        type="button"
-                        onClick={() => fillDemoCredentials("admin")}
-                        className="block text-blue-600 hover:text-blue-800 hover:underline"
-                      >
-                        Admin: admin@demo.com
-                      </button>
-                      <p className="text-gray-600 mt-1">Password for all: password123</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
               {/* Login Form */}
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
+                  <Label htmlFor="email" className="dark:text-gray-200">Email</Label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                     <Input
                       id="email"
                       type="email"
                       placeholder="your@email.com"
-                      className="pl-10"
+                      className="pl-10 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:placeholder-gray-400"
                       {...register("email")}
                     />
                   </div>
@@ -180,10 +129,10 @@ export default function LoginPage() {
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <Label htmlFor="password">Password</Label>
+                    <Label htmlFor="password" className="dark:text-gray-200">Password</Label>
                     <Link 
                       href="/auth/forgot-password" 
-                      className="text-sm text-blue-600 hover:text-blue-700"
+                      className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
                     >
                       Forgot password?
                     </Link>
@@ -194,13 +143,13 @@ export default function LoginPage() {
                       id="password"
                       type={showPassword ? "text" : "password"}
                       placeholder="••••••••"
-                      className="pl-10 pr-10"
+                      className="pl-10 pr-10 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:placeholder-gray-400"
                       {...register("password")}
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                     >
                       {showPassword ? (
                         <EyeOff className="w-4 h-4" />
@@ -227,9 +176,9 @@ export default function LoginPage() {
               </form>
 
               {/* Sign Up Link */}
-              <p className="text-center text-sm text-gray-600 mt-6">
+              <p className="text-center text-sm text-gray-600 dark:text-gray-400 mt-6">
                 Don&apos;t have an account?{" "}
-                <Link href="/auth/register" className="text-blue-600 hover:text-blue-700 font-medium">
+                <Link href="/auth/register" className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium">
                   Sign up
                 </Link>
               </p>
@@ -238,11 +187,11 @@ export default function LoginPage() {
         </motion.div>
 
         {/* Footer */}
-        <p className="text-center text-xs text-gray-500 mt-6">
+        <p className="text-center text-xs text-gray-500 dark:text-gray-400 mt-6">
           By signing in, you agree to our{" "}
-          <a href="#" className="text-blue-600 hover:underline">Terms of Service</a>
+          <a href="#" className="text-blue-600 hover:underline dark:text-blue-400">Terms of Service</a>
           {" "}and{" "}
-          <a href="#" className="text-blue-600 hover:underline">Privacy Policy</a>
+          <a href="#" className="text-blue-600 hover:underline dark:text-blue-400">Privacy Policy</a>
         </p>
       </div>
     </div>

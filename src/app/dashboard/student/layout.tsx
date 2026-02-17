@@ -1,46 +1,35 @@
 import { redirect } from "next/navigation"
-import { cookies } from "next/headers"
+import { getSession } from "@/lib/auth-utils"
 import { Sidebar } from "@/components/dashboard/student/sidebar"
 import { Header } from "@/components/dashboard/student/header"
-
-async function getUser() {
-  const cookieStore = await cookies()
-  const userInfoCookie = cookieStore.get("user_info")?.value
-  const sessionToken = cookieStore.get("session_token")?.value
-
-  if (!sessionToken) {
-    return null
-  }
-
-  if (userInfoCookie) {
-    try {
-      return JSON.parse(userInfoCookie)
-    } catch {
-      return null
-    }
-  }
-
-  return null
-}
 
 export default async function StudentDashboardLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const user = await getUser()
+  const session = await getSession()
 
-  if (!user) {
+  if (!session) {
     redirect("/auth/login")
   }
 
   // Check if user is a student
-  if (user.role !== "STUDENT") {
+  if (session.role !== "STUDENT") {
     redirect("/dashboard")
   }
 
+  const user = {
+    id: session.id,
+    name: session.name,
+    email: session.email,
+    image: session.image,
+    role: session.role,
+    theme: session.theme,
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className={`min-h-screen ${session.theme === "dark" ? "dark bg-gray-900" : "bg-gray-50"}`}>
       <Sidebar user={user} />
       <div className="lg:pl-72">
         <Header user={user} />

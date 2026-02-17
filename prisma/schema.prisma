@@ -6,40 +6,29 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
+  url      = "file:./dev.db"
 }
 
 // ==================== USER & AUTH ====================
-enum UserRole {
-  STUDENT
-  TEACHER
-  ADMIN
-}
-
-enum AuthProvider {
-  CREDENTIALS
-  GOOGLE
-  GITHUB
-}
-
 model User {
-  id            String       @id @default(cuid())
-  email         String       @unique
+  id            String    @id @default(cuid())
+  email         String    @unique
   name          String
   password      String?
   image         String?
-  role          UserRole     @default(STUDENT)
-  provider      AuthProvider @default(CREDENTIALS)
+  role          String    @default("STUDENT") // STUDENT, TEACHER, ADMIN
+  provider      String    @default("CREDENTIALS") // CREDENTIALS, GOOGLE, GITHUB
   providerId    String?
   emailVerified DateTime?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  theme         String    @default("light") // light, dark, system
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   // Relations
   student           Student?
   teacher           Teacher?
   sessions          Session[]
-  accounts          Account[]
   sentMessages      Message[]        @relation("SentMessages")
   receivedMessages  Message[]        @relation("ReceivedMessages")
   notifications     Notification[]
@@ -52,26 +41,6 @@ model User {
   @@index([role])
 }
 
-model Account {
-  id                String  @id @default(cuid())
-  userId            String
-  type              String
-  provider          String
-  providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String? @db.Text
-  session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([provider, providerAccountId])
-  @@index([userId])
-}
-
 model Session {
   id           String   @id @default(cuid())
   sessionToken String   @unique
@@ -82,6 +51,7 @@ model Session {
   updatedAt    DateTime @updatedAt
 
   @@index([userId])
+  @@index([sessionToken])
 }
 
 model VerificationToken {
@@ -179,20 +149,14 @@ model Class {
   @@index([code])
 }
 
-enum EnrollmentStatus {
-  PENDING
-  APPROVED
-  REJECTED
-}
-
 model ClassEnrollment {
-  id        String           @id @default(cuid())
+  id        String   @id @default(cuid())
   classId   String
   studentId String
-  status    EnrollmentStatus @default(PENDING)
+  status    String   @default("PENDING") // PENDING, APPROVED, REJECTED
   joinedAt  DateTime?
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   class   Class   @relation(fields: [classId], references: [id], onDelete: Cascade)
   student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
@@ -210,7 +174,7 @@ model Material {
   description String?
   type        String   // pdf, video, link, document
   url         String?
-  content     String?  @db.Text
+  content     String?
   classId     String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -224,12 +188,12 @@ model Material {
 model Assignment {
   id           String   @id @default(cuid())
   title        String
-  description  String   @db.Text
-  instructions String?  @db.Text
+  description  String
+  instructions String?
   dueDate      DateTime
   totalMarks   Int      @default(100)
   classId      String
-  attachments  Json?    // Array of file URLs
+  attachments  String?  // JSON string for array of file URLs
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -254,26 +218,19 @@ model Rubric {
   @@index([assignmentId])
 }
 
-enum SubmissionStatus {
-  PENDING
-  SUBMITTED
-  LATE
-  GRADED
-}
-
 model Submission {
-  id           String           @id @default(cuid())
+  id           String    @id @default(cuid())
   assignmentId String
   studentId    String
-  content      String?          @db.Text
-  attachments  Json?            // Array of file URLs
-  status       SubmissionStatus @default(PENDING)
+  content      String?
+  attachments  String?   // JSON string for array of file URLs
+  status       String    @default("PENDING") // PENDING, SUBMITTED, LATE, GRADED
   submittedAt  DateTime?
   marks        Int?
-  feedback     String?          @db.Text
+  feedback     String?
   gradedAt     DateTime?
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
   student    Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
@@ -285,18 +242,11 @@ model Submission {
 }
 
 // ==================== EXAMS ====================
-enum ExamType {
-  QUIZ
-  MIDTERM
-  FINAL
-  PRACTICE
-}
-
 model Exam {
   id           String   @id @default(cuid())
   title        String
   description  String?
-  type         ExamType @default(QUIZ)
+  type         String   @default("QUIZ") // QUIZ, MIDTERM, FINAL, PRACTICE
   classId      String
   duration     Int      // in minutes
   totalMarks   Int
@@ -317,24 +267,17 @@ model Exam {
   @@index([startTime, endTime])
 }
 
-enum QuestionType {
-  MCQ
-  TRUE_FALSE
-  SHORT_ANSWER
-  LONG_ANSWER
-}
-
 model Question {
-  id          String       @id @default(cuid())
+  id          String   @id @default(cuid())
   examId      String
-  type        QuestionType
-  question    String       @db.Text
-  options     Json?        // For MCQ: array of options
-  answer      String?      @db.Text
+  type        String   // MCQ, TRUE_FALSE, SHORT_ANSWER, LONG_ANSWER
+  question    String
+  options     String?  // JSON string for MCQ options
+  answer      String?
   marks       Int
-  explanation String?      @db.Text
-  order       Int          @default(0)
-  createdAt   DateTime     @default(now())
+  explanation String?
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
 
   exam    Exam           @relation(fields: [examId], references: [id], onDelete: Cascade)
   answers QuestionAnswer[]
@@ -368,7 +311,7 @@ model QuestionAnswer {
   id           String   @id @default(cuid())
   attemptId    String
   questionId   String
-  answer       String?  @db.Text
+  answer       String?
   isCorrect    Boolean?
   marksAwarded Int?
   createdAt    DateTime @default(now())
@@ -397,20 +340,13 @@ model AttendanceSession {
   @@index([date])
 }
 
-enum AttendanceStatus {
-  PRESENT
-  ABSENT
-  LATE
-  EXCUSED
-}
-
 model Attendance {
-  id        String           @id @default(cuid())
+  id        String   @id @default(cuid())
   sessionId String
   studentId String
-  status    AttendanceStatus @default(ABSENT)
+  status    String   @default("ABSENT") // PRESENT, ABSENT, LATE, EXCUSED
   remarks   String?
-  createdAt DateTime         @default(now())
+  createdAt DateTime @default(now())
 
   session AttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   student Student           @relation(fields: [studentId], references: [id], onDelete: Cascade)
@@ -425,7 +361,7 @@ model Attendance {
 model Announcement {
   id        String   @id @default(cuid())
   title     String
-  content   String   @db.Text
+  content   String
   classId   String?
   teacherId String
   isGlobal  Boolean  @default(false)
@@ -445,7 +381,7 @@ model Announcement {
 model Event {
   id          String   @id @default(cuid())
   title       String
-  description String?  @db.Text
+  description String?
   type        String   // class, exam, assignment, holiday, meeting
   startDate   DateTime
   endDate     DateTime?
@@ -488,8 +424,8 @@ model Performance {
 model AIChat {
   id        String   @id @default(cuid())
   studentId String
-  messages  Json     // Array of {role, content, timestamp}
-  context   String?  // Performance context for AI
+  messages  String   // JSON string for array of messages
+  context   String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -530,7 +466,7 @@ model ChatRoomMember {
 
 model Message {
   id         String   @id @default(cuid())
-  content    String   @db.Text
+  content    String
   senderId   String
   receiverId String?
   roomId     String?
@@ -590,11 +526,11 @@ model HelpTicket {
   id          String   @id @default(cuid())
   userId      String
   subject     String
-  description String   @db.Text
+  description String
   category    String   // technical, academic, other
   status      String   @default("OPEN") // OPEN, IN_PROGRESS, RESOLVED, CLOSED
   priority    String   @default("MEDIUM")
-  response    String?  @db.Text
+  response    String?
   resolvedAt  DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -611,7 +547,7 @@ model Feedback {
   userId    String?
   email     String?
   subject   String
-  message   String   @db.Text
+  message   String
   rating    Int?
   type      String   @default("GENERAL") // GENERAL, BUG, FEATURE, COMPLAINT
   status    String   @default("NEW") // NEW, REVIEWED, ADDRESSED
@@ -623,20 +559,6 @@ model Feedback {
   @@index([status])
 }
 
-// ==================== RATE LIMITING ====================
-model RateLimit {
-  id         String   @id @default(cuid())
-  identifier String   // IP or user ID
-  endpoint   String
-  count      Int      @default(1)
-  windowStart DateTime @default(now())
-  createdAt  DateTime @default(now())
-
-  @@unique([identifier, endpoint])
-  @@index([identifier])
-  @@index([windowStart])
-}
-
 // ==================== AUDIT LOG ====================
 model AuditLog {
   id        String   @id @default(cuid())
@@ -644,8 +566,8 @@ model AuditLog {
   action    String
   entity    String
   entityId  String?
-  oldValue  Json?
-  newValue  Json?
+  oldValue  String?  // JSON string
+  newValue  String?  // JSON string
   ip        String?
   userAgent String?
   createdAt DateTime @default(now())

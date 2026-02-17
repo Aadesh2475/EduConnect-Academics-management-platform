@@ -9,6 +9,7 @@ import {
   FileText, PieChart, Zap, Globe, Lock, TrendingUp
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 const fadeInUp = {
   initial: { opacity: 0, y: 30 },
@@ -179,7 +180,8 @@ export default function LandingPage() {
               <a href="#faq" className="text-sm font-medium text-gray-600 hover:text-indigo-600 transition-colors">FAQ</a>
             </nav>
 
-            <div className="hidden md:flex items-center gap-3">
+            <div className="hidden md:flex items-center gap-2">
+              <ThemeToggle />
               <Link href="/auth/login">
                 <Button variant="ghost" size="sm" className="text-gray-700">Log in</Button>
               </Link>

@@ -1,29 +1,15 @@
 import { redirect } from "next/navigation"
-import { cookies } from "next/headers"
+import { getSession } from "@/lib/auth-utils"
 
-export default async function DashboardRedirect() {
-  const cookieStore = await cookies()
-  const userInfoCookie = cookieStore.get("user_info")?.value
-  const sessionToken = cookieStore.get("session_token")?.value
+export default async function DashboardPage() {
+  const session = await getSession()
 
-  // If no session, redirect to login
-  if (!sessionToken) {
+  if (!session) {
     redirect("/auth/login")
   }
 
-  // Try to get role from user_info cookie
-  let role = "STUDENT"
-  if (userInfoCookie) {
-    try {
-      const userInfo = JSON.parse(userInfoCookie)
-      role = userInfo.role || "STUDENT"
-    } catch {
-      // Invalid cookie, use default
-    }
-  }
-
-  // Redirect based on role
-  switch (role.toUpperCase()) {
+  // Redirect based on user role
+  switch (session.role) {
     case "ADMIN":
       redirect("/dashboard/admin")
     case "TEACHER":

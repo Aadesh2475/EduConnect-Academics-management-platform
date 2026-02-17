@@ -1,129 +1,84 @@
-import { NextRequest, NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server";
+import prisma from "@/lib/prisma";
+import { verifyPassword, createSession } from "@/lib/auth-utils";
 
-// In-memory user storage for demo
-const users = new Map<string, {
-  id: string;
-  email: string;
-  name: string;
-  password: string;
-  role: string;
-  phone?: string;
-  department?: string;
-  subject?: string;
-  university?: string;
-  createdAt: Date;
-}>()
-
-// Pre-populate with demo users
-users.set("student@demo.com", {
-  id: "demo-student-1",
-  email: "student@demo.com",
-  name: "Demo Student",
-  password: "password123",
-  role: "STUDENT",
-  createdAt: new Date(),
-})
-
-users.set("teacher@demo.com", {
-  id: "demo-teacher-1",
-  email: "teacher@demo.com",
-  name: "Demo Teacher",
-  password: "password123",
-  role: "TEACHER",
-  department: "Computer Science",
-  subject: "Programming",
-  university: "Demo University",
-  createdAt: new Date(),
-})
-
-users.set("admin@demo.com", {
-  id: "demo-admin-1",
-  email: "admin@demo.com",
-  name: "Demo Admin",
-  password: "password123",
-  role: "ADMIN",
-  createdAt: new Date(),
-})
-
-// Helper function to generate unique ID
-function generateId(): string {
-  return Math.random().toString(36).substring(2) + Date.now().toString(36)
-}
-
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    const body = await req.json()
-    const { email, password } = body
+    const body = await request.json();
+    const { email, password } = body;
 
+    // Validate input
     if (!email || !password) {
-      return NextResponse.json({ 
-        success: false, 
-        error: "Email and password are required" 
-      }, { status: 400 })
+      return NextResponse.json(
+        { success: false, error: "Email and password are required" },
+        { status: 400 }
+      );
     }
 
-    const user = users.get(email.toLowerCase())
-    
+    // Find user by email
+    const user = await prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
+    });
+
     if (!user) {
-      return NextResponse.json({ 
-        success: false, 
-        error: "Invalid email or password" 
-      }, { status: 401 })
+      return NextResponse.json(
+        { success: false, error: "Invalid email or password" },
+        { status: 401 }
+      );
     }
 
-    if (user.password !== password) {
-      return NextResponse.json({ 
-        success: false, 
-        error: "Invalid email or password" 
-      }, { status: 401 })
+    // Check if user has password (not OAuth-only user)
+    if (!user.password) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "This account uses social login. Please sign in with Google or GitHub.",
+        },
+        { status: 401 }
+      );
     }
 
-    // Create session token
-    const token = generateId()
+    // Verify password
+    const isValid = await verifyPassword(password, user.password);
 
+    if (!isValid) {
+      return NextResponse.json(
+        { success: false, error: "Invalid email or password" },
+        { status: 401 }
+      );
+    }
+
+    // Create session
+    const sessionToken = await createSession(user.id);
+
+    // Create response
     const response = NextResponse.json({
       success: true,
-      data: { 
-        id: user.id, 
-        email: user.email, 
-        name: user.name, 
-        role: user.role 
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        theme: user.theme,
       },
       message: "Login successful",
-    })
+    });
 
     // Set session cookie
-    response.cookies.set("session_token", token, {
+    response.cookies.set("session_token", sessionToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       maxAge: 30 * 24 * 60 * 60, // 30 days
       path: "/",
-    })
+    });
 
-    // Also set user info cookie for client-side access
-    response.cookies.set("user_info", JSON.stringify({
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-    }), {
-      httpOnly: false,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 30 * 24 * 60 * 60,
-      path: "/",
-    })
-
-    return response
+    return response;
   } catch (error) {
-    console.error("Login error:", error)
-    return NextResponse.json({ 
-      success: false, 
-      error: "Internal server error" 
-    }, { status: 500 })
+    console.error("Login error:", error);
+    return NextResponse.json(
+      { success: false, error: "An error occurred during login" },
+      { status: 500 }
+    );
   }
 }
-
-// Export the users map for signup route to access
-export { users, generateId }

@@ -33,7 +33,7 @@ const studentSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   email: z.string().email("Please enter a valid email"),
   phone: z.string().optional(),
-  password: z.string().min(8, "Password must be at least 8 characters"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
   confirmPassword: z.string(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
@@ -48,7 +48,7 @@ const teacherSchema = z.object({
   subject: z.string().min(2, "Subject is required"),
   university: z.string().min(2, "University name is required"),
   phone: z.string().optional(),
-  password: z.string().min(8, "Password must be at least 8 characters"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
   confirmPassword: z.string(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
@@ -59,7 +59,7 @@ const teacherSchema = z.object({
 const adminSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   email: z.string().email("Please enter a valid email"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
   confirmPassword: z.string(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
@@ -95,7 +95,7 @@ export default function RegisterPage() {
   const onStudentSubmit = async (data: StudentFormData) => {
     setIsLoading(true)
     try {
-      const result = await signUp.email({
+      const result = await signUp({
         email: data.email,
         password: data.password,
         name: data.name,
@@ -103,10 +103,10 @@ export default function RegisterPage() {
         phone: data.phone,
       })
       
-      if (result.error) {
+      if (!result.success || result.error) {
         toast({
           title: "Registration Failed",
-          description: result.error.message || "Something went wrong",
+          description: result.error || "Something went wrong",
           variant: "destructive",
         })
       } else {
@@ -114,7 +114,7 @@ export default function RegisterPage() {
           title: "Account Created!",
           description: "Welcome to EduConnect",
         })
-        router.push("/dashboard/student")
+        router.push(getDashboardPath("STUDENT"))
         router.refresh()
       }
     } catch (error) {
@@ -132,7 +132,7 @@ export default function RegisterPage() {
   const onTeacherSubmit = async (data: TeacherFormData) => {
     setIsLoading(true)
     try {
-      const result = await signUp.email({
+      const result = await signUp({
         email: data.email,
         password: data.password,
         name: data.name,
@@ -143,10 +143,10 @@ export default function RegisterPage() {
         university: data.university,
       })
       
-      if (result.error) {
+      if (!result.success || result.error) {
         toast({
           title: "Registration Failed",
-          description: result.error.message || "Something went wrong",
+          description: result.error || "Something went wrong",
           variant: "destructive",
         })
       } else {
@@ -154,7 +154,7 @@ export default function RegisterPage() {
           title: "Account Created!",
           description: "Welcome to EduConnect",
         })
-        router.push("/dashboard/teacher")
+        router.push(getDashboardPath("TEACHER"))
         router.refresh()
       }
     } catch (error) {
@@ -172,25 +172,25 @@ export default function RegisterPage() {
   const onAdminSubmit = async (data: AdminFormData) => {
     setIsLoading(true)
     try {
-      const result = await signUp.email({
+      const result = await signUp({
         email: data.email,
         password: data.password,
         name: data.name,
         role: "ADMIN",
       })
       
-      if (result.error) {
+      if (!result.success || result.error) {
         toast({
           title: "Registration Failed",
-          description: result.error.message || "Something went wrong",
+          description: result.error || "Something went wrong",
           variant: "destructive",
         })
       } else {
         toast({
           title: "Account Created!",
-          description: "Welcome to EduConnect Admin Panel",
+          description: "Welcome to EduConnect",
         })
-        router.push("/dashboard/admin")
+        router.push(getDashboardPath("ADMIN"))
         router.refresh()
       }
     } catch (error) {
@@ -206,12 +206,12 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-50 to-indigo-100">
-      <div className="w-full max-w-lg">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+      <div className="w-full max-w-md">
         {/* Back to Home */}
         <Link 
           href="/" 
-          className="inline-flex items-center text-gray-600 hover:text-blue-600 mb-6 transition-colors"
+          className="inline-flex items-center text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 mb-6 transition-colors"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Home
@@ -222,45 +222,37 @@ export default function RegisterPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <Card className="shadow-xl">
+          <Card className="shadow-xl dark:bg-gray-800 dark:border-gray-700">
             <CardHeader className="text-center pb-2">
+              {/* Logo */}
               <div className="flex justify-center mb-4">
                 <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg">
                   <GraduationCap className="w-8 h-8 text-white" />
                 </div>
               </div>
-              <CardTitle className="text-2xl font-bold">Create Account</CardTitle>
-              <CardDescription>Join EduConnect today</CardDescription>
+              <CardTitle className="text-2xl font-bold dark:text-white">Create Account</CardTitle>
+              <CardDescription className="dark:text-gray-400">Join EduConnect today</CardDescription>
             </CardHeader>
             
             <CardContent className="pt-4">
-              <Tabs value={activeRole} onValueChange={(v) => setActiveRole(v as any)}>
-                <TabsList className="grid w-full grid-cols-3 mb-6">
-                  <TabsTrigger value="student" className="flex items-center gap-1">
-                    <User className="w-4 h-4" />
-                    Student
-                  </TabsTrigger>
-                  <TabsTrigger value="teacher" className="flex items-center gap-1">
-                    <BookOpen className="w-4 h-4" />
-                    Teacher
-                  </TabsTrigger>
-                  <TabsTrigger value="admin" className="flex items-center gap-1">
-                    <Building className="w-4 h-4" />
-                    Admin
-                  </TabsTrigger>
+              <Tabs value={activeRole} onValueChange={(v) => setActiveRole(v as "student" | "teacher" | "admin")}>
+                <TabsList className="grid w-full grid-cols-3 mb-6 dark:bg-gray-700">
+                  <TabsTrigger value="student" className="dark:data-[state=active]:bg-gray-600">Student</TabsTrigger>
+                  <TabsTrigger value="teacher" className="dark:data-[state=active]:bg-gray-600">Teacher</TabsTrigger>
+                  <TabsTrigger value="admin" className="dark:data-[state=active]:bg-gray-600">Admin</TabsTrigger>
                 </TabsList>
 
-                {/* Student Registration Form */}
+                {/* Student Form */}
                 <TabsContent value="student">
                   <form onSubmit={studentForm.handleSubmit(onStudentSubmit)} className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="student-name">Full Name</Label>
+                      <Label htmlFor="student-name" className="dark:text-gray-200">Full Name</Label>
                       <div className="relative">
                         <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <Input
                           id="student-name"
                           placeholder="John Doe"
-                          className="pl-10"
+                          className="pl-10 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                           {...studentForm.register("name")}
                         />
                       </div>
@@ -270,14 +262,14 @@ export default function RegisterPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="student-email">Email</Label>
+                      <Label htmlFor="student-email" className="dark:text-gray-200">Email</Label>
                       <div className="relative">
                         <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <Input
                           id="student-email"
                           type="email"
-                          placeholder="student@example.com"
-                          className="pl-10"
+                          placeholder="your@email.com"
+                          className="pl-10 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                           {...studentForm.register("email")}
                         />
                       </div>
@@ -287,27 +279,27 @@ export default function RegisterPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="student-phone">Phone (Optional)</Label>
+                      <Label htmlFor="student-phone" className="dark:text-gray-200">Phone (Optional)</Label>
                       <div className="relative">
                         <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <Input
                           id="student-phone"
-                          placeholder="+1234567890"
-                          className="pl-10"
+                          placeholder="+1 234 567 8900"
+                          className="pl-10 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                           {...studentForm.register("phone")}
                         />
                       </div>
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="student-password">Password</Label>
+                      <Label htmlFor="student-password" className="dark:text-gray-200">Password</Label>
                       <div className="relative">
                         <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <Input
                           id="student-password"
                           type={showPassword ? "text" : "password"}
                           placeholder="••••••••"
-                          className="pl-10 pr-10"
+                          className="pl-10 pr-10 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                           {...studentForm.register("password")}
                         />
                         <button
@@ -324,14 +316,14 @@ export default function RegisterPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="student-confirm-password">Confirm Password</Label>
+                      <Label htmlFor="student-confirm-password" className="dark:text-gray-200">Confirm Password</Label>
                       <div className="relative">
                         <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <Input
                           id="student-confirm-password"
                           type={showConfirmPassword ? "text" : "password"}
                           placeholder="••••••••"
-                          className="pl-10 pr-10"
+                          className="pl-10 pr-10 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                           {...studentForm.register("confirmPassword")}
                         />
                         <button
@@ -351,7 +343,7 @@ export default function RegisterPage() {
                       {isLoading ? (
                         <>
                           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Creating Account...
+                          Creating account...
                         </>
                       ) : (
                         "Create Student Account"
@@ -360,106 +352,101 @@ export default function RegisterPage() {
                   </form>
                 </TabsContent>
 
-                {/* Teacher Registration Form */}
+                {/* Teacher Form */}
                 <TabsContent value="teacher">
                   <form onSubmit={teacherForm.handleSubmit(onTeacherSubmit)} className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="teacher-name">Full Name</Label>
-                        <div className="relative">
-                          <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          <Input
-                            id="teacher-name"
-                            placeholder="Dr. Jane Smith"
-                            className="pl-10"
-                            {...teacherForm.register("name")}
-                          />
-                        </div>
-                        {teacherForm.formState.errors.name && (
-                          <p className="text-sm text-red-500">{teacherForm.formState.errors.name.message}</p>
-                        )}
+                    <div className="space-y-2">
+                      <Label htmlFor="teacher-name" className="dark:text-gray-200">Full Name</Label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Input
+                          id="teacher-name"
+                          placeholder="Dr. Jane Smith"
+                          className="pl-10 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                          {...teacherForm.register("name")}
+                        />
                       </div>
+                      {teacherForm.formState.errors.name && (
+                        <p className="text-sm text-red-500">{teacherForm.formState.errors.name.message}</p>
+                      )}
+                    </div>
 
-                      <div className="space-y-2">
-                        <Label htmlFor="teacher-email">Email</Label>
-                        <div className="relative">
-                          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          <Input
-                            id="teacher-email"
-                            type="email"
-                            placeholder="teacher@example.com"
-                            className="pl-10"
-                            {...teacherForm.register("email")}
-                          />
-                        </div>
-                        {teacherForm.formState.errors.email && (
-                          <p className="text-sm text-red-500">{teacherForm.formState.errors.email.message}</p>
-                        )}
+                    <div className="space-y-2">
+                      <Label htmlFor="teacher-email" className="dark:text-gray-200">Email</Label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <Input
+                          id="teacher-email"
+                          type="email"
+                          placeholder="teacher@university.edu"
+                          className="pl-10 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                          {...teacherForm.register("email")}
+                        />
                       </div>
+                      {teacherForm.formState.errors.email && (
+                        <p className="text-sm text-red-500">{teacherForm.formState.errors.email.message}</p>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="teacher-department">Department</Label>
-                        <Input
-                          id="teacher-department"
-                          placeholder="Computer Science"
-                          {...teacherForm.register("department")}
-                        />
+                        <Label htmlFor="teacher-department" className="dark:text-gray-200">Department</Label>
+                        <div className="relative">
+                          <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <Input
+                            id="teacher-department"
+                            placeholder="Computer Science"
+                            className="pl-10 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            {...teacherForm.register("department")}
+                          />
+                        </div>
                         {teacherForm.formState.errors.department && (
                           <p className="text-sm text-red-500">{teacherForm.formState.errors.department.message}</p>
                         )}
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="teacher-subject">Subject</Label>
-                        <Input
-                          id="teacher-subject"
-                          placeholder="Data Structures"
-                          {...teacherForm.register("subject")}
-                        />
+                        <Label htmlFor="teacher-subject" className="dark:text-gray-200">Subject</Label>
+                        <div className="relative">
+                          <BookOpen className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <Input
+                            id="teacher-subject"
+                            placeholder="Data Structures"
+                            className="pl-10 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                            {...teacherForm.register("subject")}
+                          />
+                        </div>
                         {teacherForm.formState.errors.subject && (
                           <p className="text-sm text-red-500">{teacherForm.formState.errors.subject.message}</p>
                         )}
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="teacher-university">University</Label>
+                    <div className="space-y-2">
+                      <Label htmlFor="teacher-university" className="dark:text-gray-200">University</Label>
+                      <div className="relative">
+                        <GraduationCap className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <Input
                           id="teacher-university"
                           placeholder="MIT"
+                          className="pl-10 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                           {...teacherForm.register("university")}
                         />
-                        {teacherForm.formState.errors.university && (
-                          <p className="text-sm text-red-500">{teacherForm.formState.errors.university.message}</p>
-                        )}
                       </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="teacher-phone">Phone (Optional)</Label>
-                        <div className="relative">
-                          <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                          <Input
-                            id="teacher-phone"
-                            placeholder="+1234567890"
-                            className="pl-10"
-                            {...teacherForm.register("phone")}
-                          />
-                        </div>
-                      </div>
+                      {teacherForm.formState.errors.university && (
+                        <p className="text-sm text-red-500">{teacherForm.formState.errors.university.message}</p>
+                      )}
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="teacher-password">Password</Label>
+                      <Label htmlFor="teacher-password" className="dark:text-gray-200">Password</Label>
                       <div className="relative">
                         <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <Input
                           id="teacher-password"
                           type={showPassword ? "text" : "password"}
                           placeholder="••••••••"
-                          className="pl-10 pr-10"
+                          className="pl-10 pr-10 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                           {...teacherForm.register("password")}
                         />
                         <button
@@ -476,14 +463,14 @@ export default function RegisterPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="teacher-confirm-password">Confirm Password</Label>
+                      <Label htmlFor="teacher-confirm-password" className="dark:text-gray-200">Confirm Password</Label>
                       <div className="relative">
                         <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <Input
                           id="teacher-confirm-password"
                           type={showConfirmPassword ? "text" : "password"}
                           placeholder="••••••••"
-                          className="pl-10 pr-10"
+                          className="pl-10 pr-10 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                           {...teacherForm.register("confirmPassword")}
                         />
                         <button
@@ -503,7 +490,7 @@ export default function RegisterPage() {
                       {isLoading ? (
                         <>
                           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Creating Account...
+                          Creating account...
                         </>
                       ) : (
                         "Create Teacher Account"
@@ -512,17 +499,17 @@ export default function RegisterPage() {
                   </form>
                 </TabsContent>
 
-                {/* Admin Registration Form */}
+                {/* Admin Form */}
                 <TabsContent value="admin">
                   <form onSubmit={adminForm.handleSubmit(onAdminSubmit)} className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="admin-name">Full Name</Label>
+                      <Label htmlFor="admin-name" className="dark:text-gray-200">Full Name</Label>
                       <div className="relative">
                         <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <Input
                           id="admin-name"
                           placeholder="Admin Name"
-                          className="pl-10"
+                          className="pl-10 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                           {...adminForm.register("name")}
                         />
                       </div>
@@ -532,14 +519,14 @@ export default function RegisterPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="admin-email">Email</Label>
+                      <Label htmlFor="admin-email" className="dark:text-gray-200">Email</Label>
                       <div className="relative">
                         <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <Input
                           id="admin-email"
                           type="email"
-                          placeholder="admin@example.com"
-                          className="pl-10"
+                          placeholder="admin@educonnect.com"
+                          className="pl-10 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                           {...adminForm.register("email")}
                         />
                       </div>
@@ -549,14 +536,14 @@ export default function RegisterPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="admin-password">Password</Label>
+                      <Label htmlFor="admin-password" className="dark:text-gray-200">Password</Label>
                       <div className="relative">
                         <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <Input
                           id="admin-password"
                           type={showPassword ? "text" : "password"}
                           placeholder="••••••••"
-                          className="pl-10 pr-10"
+                          className="pl-10 pr-10 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                           {...adminForm.register("password")}
                         />
                         <button
@@ -573,14 +560,14 @@ export default function RegisterPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="admin-confirm-password">Confirm Password</Label>
+                      <Label htmlFor="admin-confirm-password" className="dark:text-gray-200">Confirm Password</Label>
                       <div className="relative">
                         <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                         <Input
                           id="admin-confirm-password"
                           type={showConfirmPassword ? "text" : "password"}
                           placeholder="••••••••"
-                          className="pl-10 pr-10"
+                          className="pl-10 pr-10 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                           {...adminForm.register("confirmPassword")}
                         />
                         <button
@@ -600,7 +587,7 @@ export default function RegisterPage() {
                       {isLoading ? (
                         <>
                           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Creating Account...
+                          Creating account...
                         </>
                       ) : (
                         "Create Admin Account"
@@ -611,9 +598,9 @@ export default function RegisterPage() {
               </Tabs>
 
               {/* Sign In Link */}
-              <p className="text-center text-sm text-gray-600 mt-6">
+              <p className="text-center text-sm text-gray-600 dark:text-gray-400 mt-6">
                 Already have an account?{" "}
-                <Link href="/auth/login" className="text-blue-600 hover:text-blue-700 font-medium">
+                <Link href="/auth/login" className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium">
                   Sign in
                 </Link>
               </p>
@@ -622,11 +609,11 @@ export default function RegisterPage() {
         </motion.div>
 
         {/* Footer */}
-        <p className="text-center text-xs text-gray-500 mt-6">
-          By signing up, you agree to our{" "}
-          <a href="#" className="text-blue-600 hover:underline">Terms of Service</a>
+        <p className="text-center text-xs text-gray-500 dark:text-gray-400 mt-6">
+          By creating an account, you agree to our{" "}
+          <a href="#" className="text-blue-600 hover:underline dark:text-blue-400">Terms of Service</a>
           {" "}and{" "}
-          <a href="#" className="text-blue-600 hover:underline">Privacy Policy</a>
+          <a href="#" className="text-blue-600 hover:underline dark:text-blue-400">Privacy Policy</a>
         </p>
       </div>
     </div>
