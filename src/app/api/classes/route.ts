@@ -1,210 +1,198 @@
 import { NextRequest, NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
-import { auth } from "@/lib/auth"
-import { headers } from "next/headers"
-import { checkRateLimit } from "@/lib/rate-limit"
-import { generateClassCode } from "@/lib/utils"
+import prisma from "@/lib/prisma"
+import { cookies } from "next/headers"
 
+// Helper to get current user from session
 async function getCurrentUser() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
+  const cookieStore = await cookies()
+  const sessionToken = cookieStore.get("session_token")?.value
+
+  if (!sessionToken) return null
+
+  const session = await prisma.session.findUnique({
+    where: { sessionToken },
+    include: {
+      user: {
+        include: {
+          teacher: true,
+          student: true
+        }
+      }
+    }
   })
-  return session?.user
+
+  if (!session || session.expires < new Date()) return null
+  return session.user
 }
 
-// GET - Get classes
+// GET - List all classes (with role-based filtering)
 export async function GET(request: NextRequest) {
   try {
-    const rateLimitResult = await checkRateLimit(request, "classes-get", 60)
-    if (!rateLimitResult.allowed) {
-      return NextResponse.json(
-        { error: "Too many requests" },
-        { status: 429, headers: rateLimitResult.headers }
-      )
-    }
-
     const user = await getCurrentUser()
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const { searchParams } = new URL(request.url)
-    const role = searchParams.get("role") || "STUDENT"
-    const search = searchParams.get("search") || ""
     const page = parseInt(searchParams.get("page") || "1")
     const limit = parseInt(searchParams.get("limit") || "10")
+    const search = searchParams.get("search") || ""
     const skip = (page - 1) * limit
 
     let classes
     let total
 
-    if (role === "TEACHER") {
-      // Get teacher's classes
-      const teacher = await prisma.teacher.findUnique({
-        where: { userId: user.id },
+    if (user.role === "ADMIN") {
+      // Admin sees all classes
+      const where = search ? {
+        OR: [
+          { name: { contains: search } },
+          { code: { contains: search } },
+          { subject: { contains: search } }
+        ]
+      } : {}
+      
+      classes = await prisma.class.findMany({
+        where,
+        include: {
+          teacher: { include: { user: { select: { name: true, email: true, image: true } } } },
+          _count: { select: { enrollments: true, assignments: true, exams: true } }
+        },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit
       })
-
+      total = await prisma.class.count({ where })
+    } else if (user.role === "TEACHER") {
+      // Teacher sees their own classes
+      const teacher = await prisma.teacher.findUnique({ where: { userId: user.id } })
       if (!teacher) {
         return NextResponse.json({ error: "Teacher profile not found" }, { status: 404 })
       }
 
-      const where = {
-        teacherId: teacher.id,
-        ...(search && {
-          OR: [
-            { name: { contains: search, mode: "insensitive" as const } },
-            { subject: { contains: search, mode: "insensitive" as const } },
-          ],
-        }),
+      const where: any = { teacherId: teacher.id }
+      if (search) {
+        where.OR = [
+          { name: { contains: search } },
+          { code: { contains: search } },
+          { subject: { contains: search } }
+        ]
       }
-
-      [classes, total] = await Promise.all([
-        prisma.class.findMany({
-          where,
-          include: {
-            _count: {
-              select: {
-                enrollments: { where: { status: "APPROVED" } },
-                assignments: true,
-                exams: true,
-              },
-            },
-            enrollments: {
-              where: { status: "PENDING" },
-              select: { id: true },
-            },
+      
+      classes = await prisma.class.findMany({
+        where,
+        include: {
+          teacher: { include: { user: { select: { name: true, email: true, image: true } } } },
+          enrollments: {
+            include: { student: { include: { user: { select: { name: true, email: true } } } } }
           },
-          orderBy: { createdAt: "desc" },
-          skip,
-          take: limit,
-        }),
-        prisma.class.count({ where }),
-      ])
-    } else {
-      // Get student's enrolled classes
-      const student = await prisma.student.findUnique({
-        where: { userId: user.id },
+          _count: { select: { enrollments: true, assignments: true, exams: true } }
+        },
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit
       })
-
+      total = await prisma.class.count({ where })
+    } else {
+      // Student sees their enrolled classes
+      const student = await prisma.student.findUnique({ where: { userId: user.id } })
       if (!student) {
         return NextResponse.json({ error: "Student profile not found" }, { status: 404 })
       }
 
-      const where = {
-        studentId: student.id,
-        status: "APPROVED" as const,
-        ...(search && {
+      const enrollments = await prisma.classEnrollment.findMany({
+        where: { 
+          studentId: student.id,
+          status: "APPROVED"
+        },
+        include: {
           class: {
-            OR: [
-              { name: { contains: search, mode: "insensitive" as const } },
-              { subject: { contains: search, mode: "insensitive" as const } },
-            ],
-          },
-        }),
-      }
-
-      const [enrollments, totalEnrollments] = await Promise.all([
-        prisma.classEnrollment.findMany({
-          where,
-          include: {
-            class: {
-              include: {
-                teacher: {
-                  include: {
-                    user: {
-                      select: {
-                        name: true,
-                        image: true,
-                      },
-                    },
-                  },
-                },
-                _count: {
-                  select: {
-                    enrollments: { where: { status: "APPROVED" } },
-                    assignments: true,
-                    exams: true,
-                  },
-                },
-              },
-            },
-          },
-          orderBy: { joinedAt: "desc" },
-          skip,
-          take: limit,
-        }),
-        prisma.classEnrollment.count({ where }),
-      ])
-
-      classes = enrollments.map((e) => e.class)
-      total = totalEnrollments
+            include: {
+              teacher: { include: { user: { select: { name: true, email: true, image: true } } } },
+              _count: { select: { enrollments: true, assignments: true, exams: true } }
+            }
+          }
+        },
+        skip,
+        take: limit
+      })
+      
+      classes = enrollments.map(e => e.class)
+      total = await prisma.classEnrollment.count({ where: { studentId: student.id, status: "APPROVED" } })
     }
 
-    return NextResponse.json(
-      {
-        classes,
-        pagination: {
-          page,
-          limit,
-          total,
-          totalPages: Math.ceil(total / limit),
-        },
-      },
-      { headers: rateLimitResult.headers }
-    )
+    return NextResponse.json({
+      success: true,
+      data: classes,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit)
+      }
+    })
   } catch (error) {
     console.error("Error fetching classes:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
 
-// POST - Create new class (teacher only)
+// POST - Create a new class (Teacher only)
 export async function POST(request: NextRequest) {
   try {
-    const rateLimitResult = await checkRateLimit(request, "classes-create", 10)
-    if (!rateLimitResult.allowed) {
-      return NextResponse.json(
-        { error: "Too many requests" },
-        { status: 429, headers: rateLimitResult.headers }
-      )
-    }
-
     const user = await getCurrentUser()
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const teacher = await prisma.teacher.findUnique({
-      where: { userId: user.id },
-    })
-
-    if (!teacher) {
+    if (user.role !== "TEACHER" && user.role !== "ADMIN") {
       return NextResponse.json({ error: "Only teachers can create classes" }, { status: 403 })
     }
 
-    const data = await request.json()
+    const body = await request.json()
+    const { name, description, department, semester, subject } = body
+
+    if (!name || !department || !semester || !subject) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
+    }
+
+    // Get or create teacher profile
+    let teacher = await prisma.teacher.findUnique({ where: { userId: user.id } })
+    if (!teacher) {
+      teacher = await prisma.teacher.create({
+        data: {
+          userId: user.id,
+          department,
+          subject,
+          university: "Default University"
+        }
+      })
+    }
 
     // Generate unique class code
-    let code = generateClassCode()
-    let existingClass = await prisma.class.findUnique({ where: { code } })
-    while (existingClass) {
-      code = generateClassCode()
-      existingClass = await prisma.class.findUnique({ where: { code } })
-    }
+    const code = `${subject.substring(0, 3).toUpperCase()}${semester}${Date.now().toString(36).toUpperCase()}`
 
     const newClass = await prisma.class.create({
       data: {
-        name: data.name,
+        name,
         code,
-        description: data.description,
-        department: data.department,
-        semester: data.semester,
-        subject: data.subject,
-        teacherId: teacher.id,
+        description,
+        department,
+        semester: parseInt(semester),
+        subject,
+        teacherId: teacher.id
       },
+      include: {
+        teacher: { include: { user: { select: { name: true, email: true } } } },
+        _count: { select: { enrollments: true } }
+      }
     })
 
-    return NextResponse.json(newClass, { status: 201, headers: rateLimitResult.headers })
+    return NextResponse.json({
+      success: true,
+      message: "Class created successfully",
+      data: newClass
+    }, { status: 201 })
   } catch (error) {
     console.error("Error creating class:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

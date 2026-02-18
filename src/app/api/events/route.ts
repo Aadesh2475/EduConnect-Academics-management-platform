@@ -1,182 +1,278 @@
 import { NextRequest, NextResponse } from "next/server"
 import prisma from "@/lib/prisma"
-import { getSession } from "@/lib/auth/session"
-import { errorResponse } from "@/lib/api/helpers"
+import { cookies } from "next/headers"
 
-// GET /api/events - Get events for current user
-export async function GET(req: NextRequest) {
+async function getCurrentUser() {
+  const cookieStore = await cookies()
+  const sessionToken = cookieStore.get("session_token")?.value
+
+  if (!sessionToken) return null
+
+  const session = await prisma.session.findUnique({
+    where: { sessionToken },
+    include: {
+      user: {
+        include: {
+          teacher: true,
+          student: true
+        }
+      }
+    }
+  })
+
+  if (!session || session.expires < new Date()) return null
+  return session.user
+}
+
+// GET - List events
+export async function GET(request: NextRequest) {
   try {
-    const session = await getSession()
-    if (!session) return errorResponse("Unauthorized", 401)
+    const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
 
-    const { searchParams } = new URL(req.url)
-    const month = searchParams.get("month")
-    const year = searchParams.get("year")
+    const { searchParams } = new URL(request.url)
+    const classId = searchParams.get("classId")
+    const startDate = searchParams.get("startDate")
+    const endDate = searchParams.get("endDate")
     const type = searchParams.get("type")
+    const page = parseInt(searchParams.get("page") || "1")
+    const limit = parseInt(searchParams.get("limit") || "20")
+    const skip = (page - 1) * limit
 
-    const where: Record<string, unknown> = {}
+    let where: any = {}
 
-    if (month && year) {
-      const startDate = new Date(parseInt(year), parseInt(month) - 1, 1)
-      const endDate = new Date(parseInt(year), parseInt(month), 0, 23, 59, 59)
+    // Date filtering
+    if (startDate || endDate) {
+      where.startDate = {}
+      if (startDate) where.startDate.gte = new Date(startDate)
+      if (endDate) where.startDate.lte = new Date(endDate)
+    }
+
+    if (type) where.type = type
+
+    // Role-based filtering
+    if (user.role === "STUDENT") {
+      const student = await prisma.student.findUnique({ where: { userId: user.id } })
+      if (!student) {
+        return NextResponse.json({ error: "Student profile not found" }, { status: 404 })
+      }
+      
+      const enrollments = await prisma.classEnrollment.findMany({
+        where: { studentId: student.id, status: "APPROVED" },
+        select: { classId: true }
+      })
+      
       where.OR = [
-        { startDate: { gte: startDate, lte: endDate } },
-        { endDate: { gte: startDate, lte: endDate } },
+        { isGlobal: true },
+        { classId: { in: enrollments.map(e => e.classId) } }
+      ]
+    } else if (user.role === "TEACHER") {
+      const teacher = await prisma.teacher.findUnique({ where: { userId: user.id } })
+      if (!teacher) {
+        return NextResponse.json({ error: "Teacher profile not found" }, { status: 404 })
+      }
+      
+      const teacherClasses = await prisma.class.findMany({
+        where: { teacherId: teacher.id },
+        select: { id: true }
+      })
+      
+      where.OR = [
+        { isGlobal: true },
+        { classId: { in: teacherClasses.map(c => c.id) } },
+        { createdBy: user.id }
       ]
     }
 
-    if (type && type !== "all") {
-      where.type = type
+    if (classId) {
+      where.classId = classId
     }
-
-    // Get global events
-    where.OR = [
-      { isGlobal: true },
-      { createdBy: session.id },
-    ]
 
     const events = await prisma.event.findMany({
-      where: where as never,
+      where,
+      include: {
+        class: { select: { id: true, name: true, code: true } }
+      },
       orderBy: { startDate: "asc" },
+      skip,
+      take: limit
     })
 
-    // Also get class-related events (assignments, exams) for students
-    let classEvents: unknown[] = []
-
-    if (session.role === "STUDENT") {
-      const student = await prisma.student.findUnique({
-        where: { userId: session.id },
-        select: {
-          classEnrollments: {
-            where: { status: "APPROVED" },
-            select: { classId: true }
-          }
-        }
-      })
-
-      if (student) {
-        const classIds = student.classEnrollments.map(e => e.classId)
-
-        // Get assignments as events
-        const assignments = await prisma.assignment.findMany({
-          where: {
-            classId: { in: classIds },
-            isActive: true,
-          },
-          include: {
-            class: { select: { name: true, code: true } }
-          }
-        })
-
-        // Get exams as events
-        const exams = await prisma.exam.findMany({
-          where: {
-            classId: { in: classIds },
-            isActive: true,
-          },
-          include: {
-            class: { select: { name: true, code: true } }
-          }
-        })
-
-        classEvents = [
-          ...assignments.map(a => ({
-            id: `assignment-${a.id}`,
-            title: `Assignment Due: ${a.title}`,
-            type: "assignment",
-            date: a.dueDate,
-            className: a.class.code,
-            description: a.description,
-          })),
-          ...exams.map(e => ({
-            id: `exam-${e.id}`,
-            title: e.title,
-            type: "exam",
-            date: e.startTime,
-            endDate: e.endTime,
-            className: e.class.code,
-            description: e.description,
-          })),
-        ]
-      }
-    }
+    const total = await prisma.event.count({ where })
 
     return NextResponse.json({
       success: true,
-      data: [...events, ...classEvents],
+      data: events,
+      pagination: { page, limit, total, pages: Math.ceil(total / limit) }
     })
   } catch (error) {
-    console.error("Events error:", error)
-    return errorResponse("Internal server error", 500)
+    console.error("Error fetching events:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
 
-// POST /api/events - Create a new event
-export async function POST(req: NextRequest) {
+// POST - Create event
+export async function POST(request: NextRequest) {
   try {
-    const session = await getSession()
-    if (!session) return errorResponse("Unauthorized", 401)
-
-    const body = await req.json()
-    const { title, description, type, startDate, endDate, allDay, location, isGlobal } = body
-
-    if (!title || !startDate) {
-      return errorResponse("Missing required fields", 400)
+    const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Only admins can create global events
-    if (isGlobal && session.role !== "ADMIN") {
-      return errorResponse("Only admins can create global events", 403)
+    const body = await request.json()
+    const { title, description, type, startDate, endDate, allDay, location, color, classId, isGlobal } = body
+
+    if (!title || !type || !startDate) {
+      return NextResponse.json({ error: "Title, type and start date are required" }, { status: 400 })
+    }
+
+    // Verify class ownership if classId provided
+    if (classId && user.role === "TEACHER") {
+      const teacher = await prisma.teacher.findUnique({ where: { userId: user.id } })
+      const classData = await prisma.class.findFirst({
+        where: { id: classId, teacherId: teacher?.id }
+      })
+      if (!classData) {
+        return NextResponse.json({ error: "Class not found or not authorized" }, { status: 403 })
+      }
+    }
+
+    // Only admin can create global events
+    if (isGlobal && user.role !== "ADMIN") {
+      return NextResponse.json({ error: "Only admins can create global events" }, { status: 403 })
     }
 
     const event = await prisma.event.create({
       data: {
         title,
         description,
-        type: type || "event",
+        type,
         startDate: new Date(startDate),
         endDate: endDate ? new Date(endDate) : null,
         allDay: allDay || false,
         location,
-        createdBy: session.id,
-        isGlobal: isGlobal || false,
+        color,
+        classId,
+        createdBy: user.id,
+        isGlobal: isGlobal || false
+      },
+      include: {
+        class: { select: { name: true } }
       }
     })
 
-    return NextResponse.json({ success: true, data: event })
+    // Notify relevant users
+    if (classId) {
+      const enrollments = await prisma.classEnrollment.findMany({
+        where: { classId, status: "APPROVED" },
+        include: { student: true }
+      })
+
+      for (const enrollment of enrollments) {
+        await prisma.notification.create({
+          data: {
+            userId: enrollment.student.userId,
+            title: "New Event",
+            message: `New ${type} event: ${title}`,
+            type: "info",
+            link: `/dashboard/student/calendar`
+          }
+        })
+      }
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Event created successfully",
+      data: event
+    }, { status: 201 })
   } catch (error) {
-    console.error("Create event error:", error)
-    return errorResponse("Internal server error", 500)
+    console.error("Error creating event:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
 
-// DELETE /api/events/:id - Delete an event
-export async function DELETE(req: NextRequest) {
+// PUT - Update event
+export async function PUT(request: NextRequest) {
   try {
-    const session = await getSession()
-    if (!session) return errorResponse("Unauthorized", 401)
-
-    const { searchParams } = new URL(req.url)
-    const eventId = searchParams.get("id")
-
-    if (!eventId) return errorResponse("Event ID required", 400)
-
-    const event = await prisma.event.findUnique({
-      where: { id: eventId }
-    })
-
-    if (!event) return errorResponse("Event not found", 404)
-
-    // Only creator or admin can delete
-    if (event.createdBy !== session.id && session.role !== "ADMIN") {
-      return errorResponse("Forbidden", 403)
+    const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    await prisma.event.delete({ where: { id: eventId } })
+    const body = await request.json()
+    const { id, ...updateData } = body
 
-    return NextResponse.json({ success: true })
+    if (!id) {
+      return NextResponse.json({ error: "Event ID required" }, { status: 400 })
+    }
+
+    const existingEvent = await prisma.event.findUnique({ where: { id } })
+    if (!existingEvent) {
+      return NextResponse.json({ error: "Event not found" }, { status: 404 })
+    }
+
+    // Check authorization
+    if (user.role !== "ADMIN" && existingEvent.createdBy !== user.id) {
+      return NextResponse.json({ error: "Not authorized to update this event" }, { status: 403 })
+    }
+
+    const event = await prisma.event.update({
+      where: { id },
+      data: {
+        title: updateData.title,
+        description: updateData.description,
+        type: updateData.type,
+        startDate: updateData.startDate ? new Date(updateData.startDate) : undefined,
+        endDate: updateData.endDate ? new Date(updateData.endDate) : undefined,
+        allDay: updateData.allDay,
+        location: updateData.location,
+        color: updateData.color
+      }
+    })
+
+    return NextResponse.json({
+      success: true,
+      message: "Event updated",
+      data: event
+    })
   } catch (error) {
-    console.error("Delete event error:", error)
-    return errorResponse("Internal server error", 500)
+    console.error("Error updating event:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  }
+}
+
+// DELETE - Delete event
+export async function DELETE(request: NextRequest) {
+  try {
+    const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get("id")
+
+    if (!id) {
+      return NextResponse.json({ error: "Event ID required" }, { status: 400 })
+    }
+
+    const existingEvent = await prisma.event.findUnique({ where: { id } })
+    if (!existingEvent) {
+      return NextResponse.json({ error: "Event not found" }, { status: 404 })
+    }
+
+    if (user.role !== "ADMIN" && existingEvent.createdBy !== user.id) {
+      return NextResponse.json({ error: "Not authorized" }, { status: 403 })
+    }
+
+    await prisma.event.delete({ where: { id } })
+
+    return NextResponse.json({ success: true, message: "Event deleted" })
+  } catch (error) {
+    console.error("Error deleting event:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
